@@ -10,6 +10,45 @@ export const OPENSUBTITLES_COM_API_KEY =
       ? import.meta.env.VITE_OPENSUBTITLES_API_KEY || ''
       : '';
 
+// API base URL — overridable via VITE_OPENSUBTITLES_BASE_URL for local
+// development against a Rails dev server. Defaults to production .com.
+//
+// Examples:
+//   production: https://api.opensubtitles.com/api/v1   (default)
+//   staging:    https://staging.opensubtitles.com/api/v1
+//   local dev:  http://localhost:3001/api/v1
+//   ngrok:      https://osdev.ngrok.dev/api/v1
+//
+// Trailing slashes are normalized away. Missing /api/v1 suffix is auto-appended
+// (so you can pass either https://localhost:3001 or https://localhost:3001/api/v1).
+export const DEFAULT_BASE_URL = 'https://api.opensubtitles.com/api/v1';
+
+/**
+ * Pure URL normalizer for the API base. Exported for unit testing.
+ *
+ *   normalizeBaseUrl(undefined)                              → DEFAULT_BASE_URL
+ *   normalizeBaseUrl('')                                     → DEFAULT_BASE_URL
+ *   normalizeBaseUrl('  ')                                   → DEFAULT_BASE_URL
+ *   normalizeBaseUrl('http://localhost:3001')                → 'http://localhost:3001/api/v1'
+ *   normalizeBaseUrl('http://localhost:3001/api/v1')         → 'http://localhost:3001/api/v1'
+ *   normalizeBaseUrl('http://localhost:3001/api/v1/')        → 'http://localhost:3001/api/v1'
+ *   normalizeBaseUrl('https://staging.opensubtitles.com/')   → 'https://staging.opensubtitles.com/api/v1'
+ *   normalizeBaseUrl('https://x.com/api/v2')                 → 'https://x.com/api/v2'  (any /api/vN suffix preserved)
+ */
+export function normalizeBaseUrl(raw) {
+  if (raw === null || raw === undefined || typeof raw !== 'string') return DEFAULT_BASE_URL;
+  const trimmed = raw.trim().replace(/\/+$/, '');
+  if (!trimmed) return DEFAULT_BASE_URL;
+  if (!/\/api\/v\d+$/.test(trimmed)) return trimmed + '/api/v1';
+  return trimmed;
+}
+
+export const OPENSUBTITLES_BASE_URL = normalizeBaseUrl(
+  typeof import.meta !== 'undefined' && import.meta.env
+    ? import.meta.env.VITE_OPENSUBTITLES_BASE_URL
+    : null
+);
+
 // User Agent for all API requests
 export const USER_AGENT = `OpenSubtitles Uploader PRO v${APP_VERSION}`;
 
@@ -27,12 +66,23 @@ export const getApiHeaders = (contentType = 'application/json', additionalHeader
   };
 };
 
-// Validate API configuration
+// Validate API configuration. Also logs the active base URL — useful when
+// pointing the dev build at staging or localhost.
 export const validateApiConfiguration = () => {
   const errors = [];
 
   if (!OPENSUBTITLES_COM_API_KEY) {
     errors.push('VITE_OPENSUBTITLES_API_KEY is not set. Please check your .env file.');
+  }
+
+  // Always log the active base URL so devs can confirm a non-default config
+  const isDefault = OPENSUBTITLES_BASE_URL === DEFAULT_BASE_URL;
+  if (isDefault) {
+    console.log(`🌐 API base URL: ${OPENSUBTITLES_BASE_URL} (production)`);
+  } else {
+    console.log(
+      `🌐 API base URL: ${OPENSUBTITLES_BASE_URL}  ⚠ overridden via VITE_OPENSUBTITLES_BASE_URL`
+    );
   }
 
   if (errors.length > 0) {
@@ -213,16 +263,16 @@ export const ARCHIVE_MIME_TYPES = [
   'application/x-lz4',
 ];
 
-// API Endpoints - public URLs
+// API Endpoints - all derived from OPENSUBTITLES_BASE_URL so a single env var
+// (VITE_OPENSUBTITLES_BASE_URL) flips the whole app between prod/staging/dev.
 // OPENSUBTITLES_XMLRPC removed in Phase 2 — no code targets the legacy
 // .org XML-RPC API anymore.
 export const API_ENDPOINTS = {
-  OPENSUBTITLES_REST: 'https://api.opensubtitles.com/api/v1',
-  LANGUAGE_DETECTION:
-    'https://api.opensubtitles.com/api/v1/utilities/fasttext/language/detect/file',
-  SUPPORTED_LANGUAGES: 'https://api.opensubtitles.com/api/v1/utilities/fasttext/language/supported',
-  FEATURES: 'https://api.opensubtitles.com/api/v1/features',
-  GUESSIT: 'https://api.opensubtitles.com/api/v1/utilities/guessit',
+  OPENSUBTITLES_REST: OPENSUBTITLES_BASE_URL,
+  LANGUAGE_DETECTION: `${OPENSUBTITLES_BASE_URL}/utilities/fasttext/language/detect/file`,
+  SUPPORTED_LANGUAGES: `${OPENSUBTITLES_BASE_URL}/utilities/fasttext/language/supported`,
+  FEATURES: `${OPENSUBTITLES_BASE_URL}/features`,
+  GUESSIT: `${OPENSUBTITLES_BASE_URL}/utilities/guessit`,
 };
 
 // Default Settings
