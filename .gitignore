@@ -74,3 +74,6 @@ coverage/
 # Tauri build artifacts
 src-tauri/target/
 src-tauri/Cargo.locksrc/utils/embeddedConstants.js
+
+# Obsidian vault settings (per-user)
+.obsidian/
