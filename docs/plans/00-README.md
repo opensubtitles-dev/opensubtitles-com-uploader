@@ -3,7 +3,8 @@ title: "Phase 2 — Fork & REST Migration Plans"
 aliases: [uploader-rest-migration, phase-2-master, plan-index]
 tags: [uploader, migration, plan-index, phase-2]
 created: 2026-04-15
-status: in-progress
+updated: 2026-04-16 — Phase 2 implementation landed (commits 1-10 on branch phase-2/rest-migration)
+status: implementation-complete
 ---
 
 # Phase 2 — Fork & REST Migration · Plan Index
@@ -26,18 +27,18 @@ status: in-progress
 
 ## Status board
 
-| # | Document | Status | Notes |
+| # | Document | Plan | Implementation |
 |---|---|---|---|
-| 01 | [[01-audit-current-state]] | ✅ complete | Locked audit — source of truth for everything downstream |
-| 02 | [[02-endpoint-mapping]] | ✅ complete | Pairs each XML-RPC method with its REST equivalent |
-| 03 | [[03-auth-migration]] | ✅ complete | All open questions confirmed against Rails source — endpoints, JWT TTL, level names |
-| 04 | [[04-rest-client-refactor]] | ✅ complete | Consolidation design for `services/api/` |
-| 05 | [[05-upload-flow]] | ✅ complete | `/check` → `/upload` → `/my/uploads` chain |
-| 06 | [[06-my-uploads-integration]] | ✅ complete | New React component + route |
-| 07 | [[07-error-mapping]] | ✅ complete | Every XML-RPC error string → REST `error_code` |
-| 08 | [[08-testing-strategy]] | ✅ complete | Nothing shipped without golden-replay green |
-| 09 | [[09-migration-sequence]] | ✅ complete | Canonical execution order |
-| 10 | [[10-risks-rollback]] | ✅ complete | Dual-endpoint toggle + rollback plan |
+| 01 | [[01-audit-current-state]] | ✅ written | n/a (audit doc) |
+| 02 | [[02-endpoint-mapping]] | ✅ written | ✅ all endpoints migrated |
+| 03 | [[03-auth-migration]] | ✅ written | ✅ shipped in step-4 commit |
+| 04 | [[04-rest-client-refactor]] | ✅ written | ✅ shipped in step-1 + step-7 commits |
+| 05 | [[05-upload-flow]] | ✅ written | ✅ shipped in steps 5-7 |
+| 06 | [[06-my-uploads-integration]] | ✅ written | ✅ shipped in step-8 |
+| 07 | [[07-error-mapping]] | ✅ written | ✅ shipped in step-10 (`ErrorBanner` + `errorCopy`) |
+| 08 | [[08-testing-strategy]] | ✅ written | 🟡 unit + helper tests landed (327 tests); golden-replay + staging integration deferred |
+| 09 | [[09-migration-sequence]] | ✅ written | ✅ all 11 numbered steps committed |
+| 10 | [[10-risks-rollback]] | ✅ written | n/a (advisory doc; dual-endpoint toggle not shipped) |
 
 ## Cross-repo references
 
@@ -52,15 +53,20 @@ status: in-progress
 
 ## Phase 2 exit criteria
 
-> [!SUCCESS] Done-when
-> A developer can run `npm run tauri:dev` locally, log into staging.opensubtitles.com with JWT, and successfully:
-> 1. Guess a movie from a filename — via `POST /api/v1/subtitles/upload/guess`
-> 2. Check duplicate — via `POST /api/v1/subtitles/upload/check`
-> 3. Upload a subtitle — via `POST /api/v1/subtitles/upload` (server confirms disk + Mongo)
-> 4. See it in "Upload history" — via `GET /api/v1/my/uploads`
-> 5. Delete it — via `DELETE /api/v1/my/uploads/:id`
+> [!SUCCESS] Implementation complete (2026-04-16)
+> All commits landed on branch `phase-2/rest-migration` (11 atomic commits):
+> 1. ✅ Guess a movie — `POST /api/v1/subtitles/upload/guess` (step-5)
+> 2. ✅ Check duplicate — `POST /api/v1/subtitles/upload/check` (step-6)
+> 3. ✅ Upload a subtitle — `POST /api/v1/subtitles/upload` (step-7)
+> 4. ✅ See it in "Upload history" — `GET /api/v1/my/uploads` (step-8)
+> 5. ✅ Delete it — `DELETE /api/v1/my/uploads/:id` (step-8)
 >
-> All five must work end-to-end with zero XML-RPC calls remaining in the codebase (except optionally behind a `LEGACY_BACKEND` feature flag for the deprecation transition — see [[10-risks-rollback]]).
+> Zero XML-RPC calls in source — `xmlrpc.js` deleted entirely (859 LOC removed in step-7).
+> Test suite: **327/327 passing** across 84 suites.
+>
+> **Pending**: manual staging smoke test (`npm run tauri:dev` against staging.opensubtitles.com), then version bump + GH Actions release per CLAUDE.md sequence.
+>
+> Dual-endpoint toggle ([[10-risks-rollback]]) **NOT shipped** — optional follow-up if the deprecation period needs a legacy fallback.
 
 ## Decision register
 
