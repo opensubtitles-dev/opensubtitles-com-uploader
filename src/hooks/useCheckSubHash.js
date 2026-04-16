@@ -1,65 +1,59 @@
 import { useState, useCallback } from 'react';
-import { XmlRpcService } from '../services/api/xmlrpc.js';
+import { uploadApi } from '../services/api/upload.js';
 import { SubtitleHashService } from '../services/subtitleHash.js';
 import { isSubtitleFile } from '../utils/fileUtils.js';
 
 /**
- * Custom hook for CheckSubHash functionality
- * Checks if subtitle files already exist in OpenSubtitles database
+ * Hook for the early-stage "is this subtitle already in the database?" check.
+ *
+ * Replaces the legacy XML-RPC CheckSubHash batch call. The new REST endpoint
+ * (`POST /api/v1/subtitles/upload/check`) is per-file rather than batched and
+ * returns more than just dedup info — but for this hook's purpose we only
+ * surface the `already_in_db` boolean. Other server signals (quota,
+ * flags_suggested, rejection_reasons) are evaluated later in the upload flow
+ * once the full payload (language, feature, etc.) is known.
+ *
+ * Errors that mean "we don't know yet because other payload fields are
+ * missing" (`invalid_language`, `feature_not_found`, `validation_error`)
+ * collapse to status: 'unknown' — they are NOT treated as dedup failures.
+ *
+ * See docs/plans/02-endpoint-mapping.md §E8 + §E9.
  */
 export const useCheckSubHash = addDebugInfo => {
   const [hashCheckResults, setHashCheckResults] = useState({});
   const [hashCheckLoading, setHashCheckLoading] = useState(false);
   const [hashCheckProcessed, setHashCheckProcessed] = useState(false);
 
-  /**
-   * Process all subtitle files and check their hashes
-   * @param {Array} files - Array of file objects
-   */
   const processSubtitleHashes = useCallback(
     async files => {
-      if (!files || files.length === 0) {
-        return;
-      }
+      if (!files || files.length === 0) return;
 
-      // Filter subtitle files
       const subtitleFiles = files.filter(file => isSubtitleFile(file.name) && !file.shouldRemove);
-
       if (subtitleFiles.length === 0) {
-        addDebugInfo && addDebugInfo('📝 [CheckSubHash] No subtitle files found to check');
+        addDebugInfo && addDebugInfo('📝 [Check] No subtitle files found to check');
         return;
       }
 
       setHashCheckLoading(true);
       setHashCheckProcessed(false);
-      addDebugInfo &&
-        addDebugInfo(`📝 [CheckSubHash] Processing ${subtitleFiles.length} subtitle files...`);
+      addDebugInfo && addDebugInfo(`📝 [Check] Processing ${subtitleFiles.length} subtitle files...`);
 
       try {
         const results = {};
-        const hashesToCheck = [];
-        const fileHashMap = {};
 
-        // Calculate MD5 hashes for all subtitle files
+        // 1) Hash each subtitle file locally
         for (const file of subtitleFiles) {
           try {
             const hashResult = await SubtitleHashService.readAndHashSubtitleFile(file.file || file);
-            const hash = hashResult.hash;
-
             results[file.fullPath] = {
               filename: file.name,
-              hash: hash,
+              hash: hashResult.hash,
               size: hashResult.size,
               status: 'pending',
             };
-
-            hashesToCheck.push(hash);
-            fileHashMap[hash] = file.fullPath;
           } catch (error) {
             addDebugInfo &&
-              addDebugInfo(
-                `❌ [CheckSubHash] Failed to calculate hash for ${file.name}: ${error.message}`
-              );
+              addDebugInfo(`❌ [Check] Hash failed for ${file.name}: ${error.message}`);
             results[file.fullPath] = {
               filename: file.name,
               hash: null,
@@ -69,61 +63,58 @@ export const useCheckSubHash = addDebugInfo => {
           }
         }
 
-        // Check hashes with OpenSubtitles API if we have any
-        if (hashesToCheck.length > 0) {
-          addDebugInfo &&
-            addDebugInfo(`📝 [CheckSubHash] Checking ${hashesToCheck.length} hashes...`);
+        // 2) Probe the REST /check endpoint per file
+        for (const file of subtitleFiles) {
+          const entry = results[file.fullPath];
+          if (!entry || !entry.hash) continue;
 
           try {
-            const response = await XmlRpcService.checkSubHash(hashesToCheck);
+            const r = await uploadApi.check(
+              {
+                subhash: entry.hash,
+                subfilename: entry.filename,
+                // Placeholder — the dedup happens before language validation
+                // server-side (see upload.js#check docstring).
+                sublanguageid: 'eng',
+              },
+              { anonymous: true }
+            );
 
-            // Process the response
-            if (response && response.status === '200 OK' && response.data) {
-              // The response data contains hash results with subtitle IDs
-              for (const hash of hashesToCheck) {
-                const filePath = fileHashMap[hash];
-                if (results[filePath] && response.data[hash]) {
-                  const hashResult = response.data[hash];
-                  const exists = hashResult.exists;
-                  const subtitleId = hashResult.id;
-                  const subtitleUrl = hashResult.url;
-
-                  results[filePath].status = exists ? 'exists' : 'new';
-                  results[filePath].subtitleId = subtitleId;
-                  results[filePath].subtitleUrl = subtitleUrl;
-                  results[filePath].apiResponse = hashResult;
-
-                  if (exists) {
-                    addDebugInfo &&
-                      addDebugInfo(
-                        `📝 [CheckSubHash] ${results[filePath].filename} - exists (ID: ${subtitleId})`
-                      );
-                  }
-                }
-              }
+            if (r?.already_in_db) {
+              entry.status = 'exists';
+              entry.subtitleId = r.duplicate_of ?? null;
+              entry.subtitleUrl = r.feature?.url ?? null;
+              entry.apiResponse = r;
+              addDebugInfo &&
+                addDebugInfo(`📝 [Check] ${entry.filename} - exists (ID: ${entry.subtitleId})`);
             } else {
-              // If response format is unexpected, mark all as unknown
-              for (const hash of hashesToCheck) {
-                const filePath = fileHashMap[hash];
-                if (results[filePath]) {
-                  results[filePath].status = 'unknown';
-                  addDebugInfo &&
-                    addDebugInfo(
-                      `📝 [CheckSubHash] ${results[filePath].filename} - ${hash} - status unknown`
-                    );
-                }
-              }
+              entry.status = 'new';
+              entry.apiResponse = r;
             }
           } catch (apiError) {
-            addDebugInfo && addDebugInfo(`❌ [CheckSubHash] API call failed: ${apiError.message}`);
-
-            // Mark all as unknown due to API failure
-            for (const hash of hashesToCheck) {
-              const filePath = fileHashMap[hash];
-              if (results[filePath]) {
-                results[filePath].status = 'api_error';
-                results[filePath].error = apiError.message;
-              }
+            // Errors that just mean "the rest of the payload isn't ready yet"
+            // → treat as "not yet known" rather than as failure of dedup.
+            const benignCodes = new Set([
+              'invalid_language',
+              'feature_not_found',
+              'validation_error',
+            ]);
+            if (apiError?.code && benignCodes.has(apiError.code)) {
+              entry.status = 'unknown';
+              addDebugInfo &&
+                addDebugInfo(
+                  `📝 [Check] ${entry.filename} - dedup deferred (${apiError.code})`
+                );
+            } else if (apiError?.code === 'duplicate') {
+              // 409 — duplicate detected via commit-race path
+              entry.status = 'exists';
+              entry.subtitleId = apiError?.details?.duplicate_of ?? null;
+              entry.apiResponse = apiError?.details ?? null;
+            } else {
+              entry.status = 'api_error';
+              entry.error = apiError?.message ?? 'Unknown error';
+              addDebugInfo &&
+                addDebugInfo(`❌ [Check] API call failed for ${entry.filename}: ${entry.error}`);
             }
           }
         }
@@ -131,15 +122,13 @@ export const useCheckSubHash = addDebugInfo => {
         setHashCheckResults(results);
         setHashCheckProcessed(true);
 
-        const summary = Object.values(results).reduce((acc, result) => {
-          acc[result.status] = (acc[result.status] || 0) + 1;
+        const summary = Object.values(results).reduce((acc, r) => {
+          acc[r.status] = (acc[r.status] || 0) + 1;
           return acc;
         }, {});
-
-        addDebugInfo &&
-          addDebugInfo(`✅ [CheckSubHash] Complete. Summary: ${JSON.stringify(summary)}`);
+        addDebugInfo && addDebugInfo(`✅ [Check] Complete. Summary: ${JSON.stringify(summary)}`);
       } catch (error) {
-        addDebugInfo && addDebugInfo(`❌ [CheckSubHash] Processing failed: ${error.message}`);
+        addDebugInfo && addDebugInfo(`❌ [Check] Processing failed: ${error.message}`);
       } finally {
         setHashCheckLoading(false);
       }
@@ -147,41 +136,21 @@ export const useCheckSubHash = addDebugInfo => {
     [addDebugInfo]
   );
 
-  /**
-   * Get hash check result for a specific file
-   * @param {string} filePath - Full path of the file
-   * @returns {Object|null} - Hash check result or null
-   */
   const getHashCheckResult = useCallback(
-    filePath => {
-      return hashCheckResults[filePath] || null;
-    },
+    filePath => hashCheckResults[filePath] || null,
     [hashCheckResults]
   );
 
-  /**
-   * Check if a file already exists in database
-   * @param {string} filePath - Full path of the file
-   * @returns {boolean} - True if file exists in database
-   */
   const fileExistsInDatabase = useCallback(
-    filePath => {
-      const result = hashCheckResults[filePath];
-      return result?.status === 'exists';
-    },
+    filePath => hashCheckResults[filePath]?.status === 'exists',
     [hashCheckResults]
   );
 
-  /**
-   * Get summary of hash check results
-   * @returns {Object} - Summary statistics
-   */
   const getHashCheckSummary = useCallback(() => {
-    const summary = Object.values(hashCheckResults).reduce((acc, result) => {
-      acc[result.status] = (acc[result.status] || 0) + 1;
+    const summary = Object.values(hashCheckResults).reduce((acc, r) => {
+      acc[r.status] = (acc[r.status] || 0) + 1;
       return acc;
     }, {});
-
     return {
       total: Object.keys(hashCheckResults).length,
       exists: summary.exists || 0,
@@ -193,9 +162,6 @@ export const useCheckSubHash = addDebugInfo => {
     };
   }, [hashCheckResults]);
 
-  /**
-   * Clear hash check results
-   */
   const clearHashCheckResults = useCallback(() => {
     setHashCheckResults({});
     setHashCheckProcessed(false);

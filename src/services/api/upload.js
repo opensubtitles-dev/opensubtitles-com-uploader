@@ -101,6 +101,39 @@ export function createUploadApi({ client = defaultClient } = {}) {
 
       return { best_guess: best, candidates, raw: response };
     },
+
+    /**
+     * POST /subtitles/upload/check — pre-flight dedup + anti-abuse + quota.
+     *
+     * The server-side endpoint expects the FULL upload payload (subhash,
+     * subfilename, sublanguageid, idmovieimdb/feature_id, ...) but runs the
+     * subhash dedup BEFORE language/feature validation. So an early-stage
+     * caller that only knows the subhash can probe with a placeholder
+     * `sublanguageid: "eng"` and treat:
+     *   - 200 + already_in_db: true   → real duplicate
+     *   - 200 + already_in_db: false  → not a duplicate
+     *   - 4xx invalid_language / feature_not_found / validation_error
+     *                                  → other fields incomplete; treat as
+     *                                    "not yet known" rather than as a
+     *                                    failure of dedup
+     *
+     * Returns the parsed server envelope, including:
+     *   { already_in_db, duplicate_of, feature, would_be_rejected,
+     *     rejection_reasons, flags_suggested, quota }
+     *
+     * @param {object}  payload          full or partial upload payload
+     * @param {object}  [opts]
+     * @param {boolean} [opts.anonymous] omit Bearer (default: send if present)
+     * @param {AbortSignal} [opts.signal]
+     */
+    async check(payload, opts = {}) {
+      // Strip subcontent — /check never needs it (the commit endpoint does).
+      const { subcontent: _subcontent, ...checkPayload } = payload || {};
+      return client.post('/subtitles/upload/check', checkPayload, {
+        signal: opts.signal,
+        authenticated: opts.anonymous === true ? false : 'auto',
+      });
+    },
   };
 }
 
