@@ -220,12 +220,12 @@ const LoginDialog = ({ isOpen, onClose }) => {
           <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             Don't have an account?{' '}
             <a
-              href="https://www.opensubtitles.org/register"
+              href="https://www.opensubtitles.com/users/sign_up"
               target="_blank"
               rel="noopener noreferrer"
               className={`font-medium ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'}`}
             >
-              Register on OpenSubtitles.org
+              Register on OpenSubtitles.com
             </a>
           </p>
         </div>
@@ -233,9 +233,9 @@ const LoginDialog = ({ isOpen, onClose }) => {
         {/* Info */}
         <div className={`mt-6 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
           <p>
-            <strong>Required:</strong> You need an OpenSubtitles.org account to upload subtitles.
+            <strong>Required:</strong> You need an OpenSubtitles.com account to upload subtitles.
           </p>
-          <p>Your credentials are sent securely and only used for authentication.</p>
+          <p>Your credentials are sent over HTTPS and only used for authentication.</p>
         </div>
       </div>
     </div>

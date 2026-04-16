@@ -4,14 +4,27 @@ import { SessionManager } from '../services/sessionManager.js';
 import { detectSession, logSessionDetection, SessionSource } from '../utils/sessionUtils.js';
 
 /**
- * Authentication context for managing login state across the application
+ * Authentication context — JWT Bearer against opensubtitles.com.
+ *
+ * State machine:
+ *   APP START
+ *     1. authService auto-restores from localStorage on module load
+ *     2. AuthContext.initAuth() runs:
+ *        - if URL has ?jwt=, prefer it (calls authService.checkAuthStatus(jwt))
+ *        - else if JWT was hydrated, validate via GET /infos/user
+ *        - else stay logged out
+ *     3. On 401 mid-session, restClient → authStore.onAuthExpired() →
+ *        authService dispatches `osdb:auth-expired` window event, which
+ *        this context listens for and reflects into state.
+ *
+ * Public context value (preserved for back-compat):
+ *   { isAuthenticated, user, token, loading, error,
+ *     login, logout, isAnonymous, getUserPreferredLanguages,
+ *     clearError, refreshAuth, authService }
  */
+
 const AuthContext = createContext();
 
-/**
- * Hook to use authentication context
- * @returns {Object} Authentication context value
- */
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -20,11 +33,6 @@ export const useAuth = () => {
   return context;
 };
 
-/**
- * Authentication provider component
- * @param {Object} props - Component props
- * @param {React.ReactNode} props.children - Child components
- */
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
@@ -32,221 +40,155 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Initialize authentication on component mount
+  // -------------------------------------------------------------------
+  // Initial auth resolution
+  // -------------------------------------------------------------------
+
   useEffect(() => {
+    let cancelled = false;
+
     const initAuth = async () => {
       try {
-        // Use unified session detection system
         const sessionDetection = logSessionDetection('AuthContext Initialization');
+        const sessionId = sessionDetection.sessionId;
 
-        if (sessionDetection.sessionId) {
-          const sessionId = sessionDetection.sessionId;
-
-          // Check if the session ID is valid by calling GetUserInfo
+        if (sessionId) {
+          // Validate the JWT (URL or stored) by calling GET /infos/user
           const userInfo = await authService.checkAuthStatus(sessionId);
+          if (cancelled) return;
 
           if (userInfo) {
-            // Valid session - user is already logged in on OpenSubtitles.org
             setIsAuthenticated(true);
             setUser(userInfo);
-            setToken(sessionId);
-            console.log('✅ Valid session authenticated');
-            console.log('✅ User data:', userInfo);
-            console.log('✅ User:', userInfo.UserNickName);
-            console.log('✅ Rank:', userInfo.UserRank);
+            setToken(authService.getToken());
 
-            // Store in localStorage for future use
-            localStorage.setItem('opensubtitles_token', sessionId);
-            localStorage.setItem('opensubtitles_user_data', JSON.stringify(userInfo));
-            localStorage.setItem('opensubtitles_login_time', Date.now().toString());
-
-            // Remember username for future logins
-            if (userInfo.UserNickName) {
-              localStorage.setItem('opensubtitles_remembered_username', userInfo.UserNickName);
-            }
-
-            // If session came from URL, ensure it's stored by SessionManager
-            if (sessionDetection.source === SessionSource.URL_PARAMETER) {
+            // If the JWT came in via URL handoff, persist it
+            if (sessionDetection.source === SessionSource.URL_JWT_PARAMETER) {
               SessionManager.storeSessionId(sessionId);
             }
           } else {
-            // Invalid session ID
-            console.log('❌ Invalid session ID');
+            // Invalid/expired JWT
             setIsAuthenticated(false);
             setUser(null);
             setToken(null);
-            // Clear invalid stored session
             SessionManager.clearStoredSession();
           }
         } else {
-          // No URL parameter, try to restore from localStorage
-          const restored = authService.restoreAuthFromStorage();
-          if (restored) {
-            // Check if the restored session is still valid
-            const userInfo = await authService.checkAuthStatus();
-
-            if (userInfo) {
-              // Valid session restored
-              setIsAuthenticated(true);
-              setUser(userInfo);
-              setToken(authService.getToken());
-              console.log('✅ Valid session restored');
-              console.log('✅ User data:', userInfo);
-            } else {
-              // Invalid session, user needs to login
-              console.log('❌ Stored session is invalid, user needs to login');
-              setIsAuthenticated(false);
-              setUser(null);
-              setToken(null);
-            }
-          } else {
-            // No stored session, user needs to login
-            setIsAuthenticated(false);
-            setUser(null);
-            setToken(null);
-          }
+          // No session anywhere → stay logged out
+          setIsAuthenticated(false);
+          setUser(null);
+          setToken(null);
         }
-      } catch (error) {
-        console.error('❌ Failed to initialize authentication:', error);
-        console.error('❌ Error stack:', error.stack);
-        setError(`Auth initialization failed: ${error.message}`);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('❌ Auth initialization error:', err);
+        setError(`Auth initialization failed: ${err.message}`);
         setIsAuthenticated(false);
         setUser(null);
         setToken(null);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     initAuth();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  /**
-   * Login with username and password
-   * @param {string} username - Username
-   * @param {string} password - Password
-   * @param {string} language - Language code (default: 'en')
-   * @returns {Promise<Object>} Login result
-   */
+  // -------------------------------------------------------------------
+  // 401 listener — mid-session expiry
+  // -------------------------------------------------------------------
+
+  useEffect(() => {
+    const handler = () => {
+      setIsAuthenticated(false);
+      setUser(null);
+      setToken(null);
+      setError('Your session has expired. Please log in again.');
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('osdb:auth-expired', handler);
+      return () => window.removeEventListener('osdb:auth-expired', handler);
+    }
+    return undefined;
+  }, []);
+
+  // -------------------------------------------------------------------
+  // login / logout
+  // -------------------------------------------------------------------
+
   const login = async (username, password, language = 'en') => {
     try {
       setLoading(true);
       setError(null);
 
-      const result = await authService.loginWithHash(username, password, language);
+      // PLAINTEXT — no MD5. .com /login validates via Devise bcrypt.
+      const result = await authService.login(username, password, language);
 
       if (result.success) {
         setIsAuthenticated(true);
         setUser(result.userData);
         setToken(result.token);
-        console.log('✅ Login successful:', result.userData.UserNickName);
 
-        // Remember username for future logins
-        if (result.userData.UserNickName) {
-          localStorage.setItem('opensubtitles_remembered_username', result.userData.UserNickName);
+        if (result.userData?.username) {
+          try {
+            localStorage.setItem('opensubtitles_remembered_username', result.userData.username);
+          } catch {
+            /* ignore */
+          }
         }
-
-        return result;
       } else {
         setError(result.message || 'Login failed');
-        console.error('❌ Login failed:', result.error);
-        return result;
       }
-    } catch (error) {
-      const errorMessage = error.message || 'Login failed';
+      return result;
+    } catch (err) {
+      const errorMessage = err.message || 'Login failed';
       setError(errorMessage);
-      console.error('❌ Login error:', error);
       return { success: false, error: errorMessage };
     } finally {
       setLoading(false);
     }
   };
 
-  /**
-   * Logout current user
-   * @returns {Promise<Object>} Logout result
-   */
   const logout = async () => {
     try {
       setLoading(true);
       setError(null);
-
       const result = await authService.logout();
-
-      // Clear state regardless of API response
       setIsAuthenticated(false);
       setUser(null);
       setToken(null);
-
-      console.log('✅ Logout completed');
-
       return result;
-    } catch (error) {
-      const errorMessage = error.message || 'Logout failed';
+    } catch (err) {
+      const errorMessage = err.message || 'Logout failed';
       setError(errorMessage);
-      console.error('❌ Logout error:', error);
       return { success: false, error: errorMessage };
     } finally {
       setLoading(false);
     }
   };
 
-  /**
-   * Check if current user is anonymous
-   * @returns {boolean} True if anonymous user
-   */
-  const isAnonymous = () => {
-    return authService.isAnonymous();
-  };
+  // -------------------------------------------------------------------
+  // Helpers
+  // -------------------------------------------------------------------
+
+  const isAnonymous = () => authService.isAnonymous();
+  const getUserPreferredLanguages = () => authService.getUserPreferredLanguages();
+  const clearError = () => setError(null);
 
   /**
-   * Get user's preferred languages
-   * @returns {string[]} Array of language codes
-   */
-  const getUserPreferredLanguages = () => {
-    return authService.getUserPreferredLanguages();
-  };
-
-  /**
-   * Clear authentication error
-   */
-  const clearError = () => {
-    setError(null);
-  };
-
-  /**
-   * Refresh authentication token
-   * @returns {Promise<Object>} Refresh result
+   * `refreshAuth` — kept for back-compat with the legacy API. Without a
+   * refresh-token mechanism (.com doesn't issue them), the only honest
+   * answer to "refresh" is "please log in again". We surface the error
+   * so the LoginDialog can be shown.
    */
   const refreshAuth = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // If we have a user, try to re-login with same credentials
-      if (user && !isAnonymous()) {
-        // Note: We can't re-login with original credentials since we don't store them
-        // This would require the user to login again
-        setError('Please login again to refresh your session');
-        return { success: false, error: 'Session expired' };
-      } else {
-        // For anonymous users, clear auth state - can't refresh without credentials
-        setIsAuthenticated(false);
-        setUser(null);
-        setToken(null);
-        return { success: false, error: 'Session expired, please login again' };
-      }
-    } catch (error) {
-      const errorMessage = error.message || 'Failed to refresh authentication';
-      setError(errorMessage);
-      console.error('❌ Auth refresh error:', error);
-      return { success: false, error: errorMessage };
-    } finally {
-      setLoading(false);
-    }
+    setError('Please login again to refresh your session');
+    return { success: false, error: 'Session expired' };
   };
 
-  // Context value
   const value = {
     // State
     isAuthenticated,
@@ -263,7 +205,7 @@ export const AuthProvider = ({ children }) => {
     clearError,
     refreshAuth,
 
-    // Utility
+    // Utility — direct service for components that need lower-level access
     authService,
   };
 

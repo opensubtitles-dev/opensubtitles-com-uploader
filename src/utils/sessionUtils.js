@@ -1,192 +1,133 @@
 /**
- * Unified Session Detection Utility
+ * JWT detection — successor to the legacy PHPSESSID/cookie session detector.
  *
- * This utility provides a single, consistent way to detect OpenSubtitles
- * session IDs from multiple sources, preventing authentication mismatches
- * between different parts of the application.
+ * Sources, in priority order:
+ *   1. URL parameter `?jwt=` (highest — fresh handoff from a server-side
+ *      flow such as the embedded web SPA)
+ *   2. URL parameter `?sid=` (LEGACY — silently captured for the URL-cleanup
+ *      side-effect, then ignored. The token itself wouldn't work against
+ *      .com anyway.)
+ *   3. localStorage `osdb_com_jwt` (previously stored by authService)
+ *
+ * Cookies (`PHPSESSID`, `remember_sid`) are no longer consulted — they were
+ * .org-only and don't apply to the .com REST flow.
  */
 
 import { logSensitiveData } from './securityUtils.js';
+import { STORAGE_KEYS } from './storageKeys.js';
 
-/**
- * Utility to safely read cookies
- * @param {string} name - Cookie name to read
- * @returns {string|null} Cookie value or null if not found
- */
+/** Legacy export kept so any importer that still references it doesn't break. */
 export const getCookie = name => {
   try {
+    if (typeof document === 'undefined') return null;
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
     if (parts.length === 2) {
-      const cookieValue = parts.pop().split(';').shift();
-      return cookieValue || null;
+      return parts.pop().split(';').shift() || null;
     }
     return null;
-  } catch (error) {
-    console.warn(`🍪 Failed to read cookie ${name}:`, error.message);
+  } catch (err) {
+    console.warn(`🍪 Failed to read cookie ${name}:`, err.message);
     return null;
   }
 };
 
-/**
- * Utility to safely read localStorage
- * @param {string} key - localStorage key to read
- * @returns {string|null} Value or null if not found
- */
 export const getStorageItem = key => {
   try {
-    return localStorage.getItem(key);
-  } catch (error) {
-    console.warn(`💾 Failed to read localStorage ${key}:`, error.message);
+    return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+  } catch (err) {
+    console.warn(`💾 Failed to read localStorage ${key}:`, err.message);
     return null;
   }
 };
 
-/**
- * Utility to safely read URL parameters
- * @param {string} param - URL parameter name to read
- * @returns {string|null} Parameter value or null if not found
- */
 export const getUrlParam = param => {
   try {
-    const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get(param);
-  } catch (error) {
-    console.warn(`🔗 Failed to read URL parameter ${param}:`, error.message);
+    if (typeof window === 'undefined') return null;
+    return new URLSearchParams(window.location.search).get(param);
+  } catch (err) {
+    console.warn(`🔗 Failed to read URL parameter ${param}:`, err.message);
     return null;
   }
 };
 
-/**
- * Session Source Types (for tracking where session came from)
- */
-export const SessionSource = {
-  URL_PARAMETER: 'url_parameter',
-  STORED_TOKEN: 'stored_token',
-  REMEMBER_SID_COOKIE: 'remember_sid_cookie',
-  PHPSESSID_COOKIE: 'phpsessid_cookie',
+/** Where a session was found. */
+export const SessionSource = Object.freeze({
+  URL_JWT_PARAMETER: 'url_jwt_parameter',
+  STORED_JWT: 'stored_jwt',
   NONE: 'none',
+});
+
+/**
+ * JWT format check. JWTs are base64url-encoded triples joined by dots
+ * (header.payload.signature). We match on shape only — actual signature
+ * verification happens server-side.
+ */
+const JWT_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+
+export const isValidSessionFormat = token => {
+  if (!token || typeof token !== 'string') return false;
+  return JWT_PATTERN.test(token.trim());
 };
 
 /**
- * Unified session detection with priority handling
+ * Detect the current session JWT.
  *
- * Priority order:
- * 1. URL parameter 'sid' (highest priority - fresh from OpenSubtitles.org)
- * 2. Stored token in localStorage (previously validated session)
- * 3. remember_sid cookie (persistent login from OpenSubtitles.org)
- * 4. PHPSESSID cookie (active session from OpenSubtitles.org)
- *
- * @returns {Object} Session detection result
+ * @returns {{ sessionId: string|null, source: string, debug: object }}
  */
 export const detectSession = () => {
   const result = {
     sessionId: null,
     source: SessionSource.NONE,
     debug: {
-      urlSid: null,
-      storedToken: null,
-      rememberSid: null,
-      phpSessId: null,
+      urlJwt: null,
+      storedJwt: null,
       timestamp: new Date().toISOString(),
     },
   };
 
-  // 1. Check URL parameter (highest priority)
-  const urlSid = getUrlParam('sid');
-  result.debug.urlSid = urlSid ? `${urlSid.substring(0, 8)}...` : null;
-
-  if (urlSid) {
-    result.sessionId = urlSid;
-    result.source = SessionSource.URL_PARAMETER;
-    logSensitiveData('🔍 Session detected from URL parameter', urlSid, 'session');
+  // 1. URL ?jwt=
+  const urlJwt = getUrlParam('jwt');
+  result.debug.urlJwt = urlJwt ? `${urlJwt.substring(0, 8)}...` : null;
+  if (urlJwt && isValidSessionFormat(urlJwt)) {
+    result.sessionId = urlJwt;
+    result.source = SessionSource.URL_JWT_PARAMETER;
+    logSensitiveData('🔍 JWT detected from URL parameter', urlJwt, 'session');
     return result;
   }
 
-  // 2. Check stored token in localStorage
-  const storedToken = getStorageItem('opensubtitles_token');
-  result.debug.storedToken = storedToken ? `${storedToken.substring(0, 8)}...` : null;
-
-  if (storedToken) {
-    result.sessionId = storedToken;
-    result.source = SessionSource.STORED_TOKEN;
-    logSensitiveData('🔍 Session detected from stored token', storedToken, 'session');
+  // 2. localStorage osdb_com_jwt
+  const storedJwt = getStorageItem(STORAGE_KEYS.JWT);
+  result.debug.storedJwt = storedJwt ? `${storedJwt.substring(0, 8)}...` : null;
+  if (storedJwt) {
+    result.sessionId = storedJwt;
+    result.source = SessionSource.STORED_JWT;
+    logSensitiveData('🔍 JWT detected from storage', storedJwt, 'session');
     return result;
   }
 
-  // 3. Check remember_sid cookie (persistent login)
-  const rememberSid = getCookie('remember_sid');
-  result.debug.rememberSid = rememberSid ? `${rememberSid.substring(0, 8)}...` : null;
-
-  if (rememberSid) {
-    result.sessionId = rememberSid;
-    result.source = SessionSource.REMEMBER_SID_COOKIE;
-    logSensitiveData('🔍 Session detected from remember_sid cookie', rememberSid, 'session');
-    return result;
-  }
-
-  // 4. Check PHPSESSID cookie (active session)
-  const phpSessId = getCookie('PHPSESSID');
-  result.debug.phpSessId = phpSessId ? `${phpSessId.substring(0, 8)}...` : null;
-
-  if (phpSessId) {
-    result.sessionId = phpSessId;
-    result.source = SessionSource.PHPSESSID_COOKIE;
-    logSensitiveData('🔍 Session detected from PHPSESSID cookie', phpSessId, 'session');
-    return result;
-  }
-
-  // No session found - normal for first-time users
   return result;
 };
 
-/**
- * Get detailed session information for debugging
- * @returns {Object} Comprehensive session debug info
- */
 export const getSessionDebugInfo = () => {
   const detection = detectSession();
-
   return {
     ...detection,
-    allCookies: document.cookie,
     localStorage: {
-      token: getStorageItem('opensubtitles_token'),
-      userData: getStorageItem('opensubtitles_user_data'),
-      loginTime: getStorageItem('opensubtitles_login_time'),
+      jwt: getStorageItem(STORAGE_KEYS.JWT),
+      user: getStorageItem(STORAGE_KEYS.USER),
+      loginTime: getStorageItem(STORAGE_KEYS.LOGIN_TIME),
     },
-    url: window.location.href,
-    userAgent: navigator.userAgent,
+    url: typeof window !== 'undefined' ? window.location.href : null,
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
     timestamp: new Date().toISOString(),
   };
 };
 
-/**
- * Validate if a session ID looks like a valid OpenSubtitles session
- * @param {string} sessionId - Session ID to validate
- * @returns {boolean} True if session ID format looks valid
- */
-export const isValidSessionFormat = sessionId => {
-  if (!sessionId || typeof sessionId !== 'string') {
-    return false;
-  }
-
-  // OpenSubtitles session IDs are typically 20+ characters alphanumeric
-  const sessionPattern = /^[a-zA-Z0-9]{20,}$/;
-  return sessionPattern.test(sessionId);
-};
-
-/**
- * Log comprehensive session detection information
- * @param {string} context - Context where this is being called from
- */
 export const logSessionDetection = (context = 'Unknown') => {
   const info = getSessionDebugInfo();
-
-  // Only log session detection if a session was found
-  if (info.sessionId && info.sessionId !== 'none') {
-    logSensitiveData(`🔍 Session detected from ${info.source}`, info.sessionId, 'session');
+  if (info.sessionId) {
+    logSensitiveData(`🔍 [${context}] JWT detected from ${info.source}`, info.sessionId, 'session');
   }
-
   return info;
 };

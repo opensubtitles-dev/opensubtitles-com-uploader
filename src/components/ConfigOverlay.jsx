@@ -782,7 +782,11 @@ export const ConfigOverlay = ({
               )}
 
               {/* Upload as Anonymous Setting - ONLY for OS Legend rank */}
-              {userInfo?.UserRanks?.includes('os legend') && (
+              {userInfo?.UserRanks?.some(
+                r =>
+                  r?.toLowerCase() === 'os legend' ||
+                  r?.toLowerCase() === 'opensubtitles legends'
+              ) && (
                 <>
                   {/* Minimal separator line */}
                   <div className="h-px" style={{ backgroundColor: colors.border, opacity: 0.3 }} />

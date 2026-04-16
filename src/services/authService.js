@@ -1,349 +1,333 @@
-import { xmlrpcCall } from './api/xmlrpc.js';
-import { APP_VERSION } from '../utils/constants.js';
-import { logSensitiveData } from '../utils/securityUtils.js';
-
 /**
- * Authentication service for OpenSubtitles XML-RPC API
+ * Authentication service — JWT Bearer against opensubtitles.com.
+ *
+ * Replaces the legacy XML-RPC LogIn/LogOut/GetUserInfo flow. State machine
+ * documented in docs/plans/03-auth-migration.md §3.
+ *
+ * Public API (preserved for AuthContext + components):
+ *   await authService.login(username, password, lang)
+ *     → { success, token?, userData?, error?, message }
+ *   await authService.logout() → { success, message }
+ *   await authService.checkAuthStatus(jwt?) → userData|null
+ *   authService.isLoggedIn() → boolean
+ *   authService.getToken() → string|null
+ *   authService.getUserData() → object|null
+ *   authService.isAnonymous() → boolean
+ *   authService.getUserPreferredLanguages() → string[]
+ *   await authService.restoreAuthFromStorage() → boolean
+ *   await authService.clearAuthData() → void
+ *
+ * Wires `authStore.setToken()` on every state change so the unified REST
+ * client can attach `Authorization: Bearer <jwt>` headers automatically.
  */
+
+import { authApi } from './api/auth.js';
+import authStore from './api/authStore.js';
+import { adaptRestUser, mergeRefreshedUser } from './api/userData.js';
+import { STORAGE_KEYS } from '../utils/storageKeys.js';
+import { logSensitiveData } from '../utils/securityUtils.js';
+import { APP_VERSION } from '../utils/constants.js';
+
+const MAX_HYDRATE_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days — JWT itself expires server-side at 24h
+
 class AuthService {
   constructor() {
     this.token = null;
     this.userData = null;
     this.isAuthenticated = false;
-    this.userAgent = `OpenSubtitles Uploader PRO v${APP_VERSION}`;
+    this.userAgent = `OpenSubtitles Uploader v${APP_VERSION}`;
+
+    // Wire authStore so restClient picks up auth state changes
+    authStore.registerOnExpired(() => this._handleAuthExpired());
   }
 
+  // ---------------------------------------------------------------------
+  // Login / logout
+  // ---------------------------------------------------------------------
+
   /**
-   * Login to OpenSubtitles using XML-RPC LogIn method
-   * @param {string} username - Username (empty string for anonymous)
-   * @param {string} password - Password (empty string for anonymous)
-   * @param {string} language - ISO 639-1 language code (default: 'en')
-   * @returns {Promise<Object>} Login response with token and user data
+   * Log in with plaintext credentials. The .com REST `/login` endpoint
+   * validates against Devise bcrypt internally — NO client-side MD5.
+   *
+   * @param {string} username
+   * @param {string} password   plaintext, sent over HTTPS
+   * @param {string} [_lang]    accepted for back-compat with old signature; not sent server-side
+   * @returns {Promise<{success: boolean, token?: string, userData?: object, error?: string, message: string, isAnonymous?: boolean}>}
    */
-  async login(username = '', password = '', language = 'en') {
+  async login(username, password, _lang = 'en') {
     try {
-      console.log('🔐 Attempting login to OpenSubtitles...');
-      console.log('🔐 Username:', username ? `"${username}"` : '(anonymous)');
-      console.log('🔐 Password:', password ? '[HIDDEN]' : '(no password)');
-      console.log('🔐 Language:', language);
-      console.log('🔐 User Agent:', this.userAgent);
+      const response = await authApi.login({ username, password });
 
-      // Prepare parameters for XML-RPC call
-      const params = [username || '', password || '', language || 'en', this.userAgent];
-
-      console.log(
-        '🔐 XML-RPC params prepared:',
-        params.map((p, i) => (i === 1 && p ? '[HIDDEN]' : p))
-      );
-
-      // Make XML-RPC call to LogIn method
-      console.log('🔐 Making XML-RPC call to LogIn...');
-      const response = await xmlrpcCall('LogIn', params);
-
-      console.log('🔐 Login response received:', response);
-      console.log('🔐 Response type:', typeof response);
-      console.log('🔐 Response keys:', response ? Object.keys(response) : 'null');
-
-      // Check if login was successful
-      if (response && response.status && response.status.includes('200')) {
-        console.log('✅ Login response status is 200 OK');
-
-        // Store authentication data
-        this.token = response.token;
-        this.userData = response.data || {};
-        this.isAuthenticated = true;
-
-        logSensitiveData('🔐 Token received', this.token, 'token');
-        console.log('🔐 User data received:', this.userData);
-
-        // Store in localStorage for persistence
-        localStorage.setItem('opensubtitles_token', this.token);
-        localStorage.setItem('opensubtitles_user_data', JSON.stringify(this.userData));
-        localStorage.setItem('opensubtitles_login_time', Date.now().toString());
-
-        console.log('✅ Login successful');
-        console.log('👤 User:', this.userData.UserNickName || 'Anonymous');
-        console.log('🎖️ Rank:', this.userData.UserRank || 'User');
-        console.log('🎯 Token stored');
-
-        // Fetch additional user info via getUserInfo to get complete profile data
-        try {
-          console.log('📋 Fetching additional user info via getUserInfo...');
-          const { UserService } = await import('./userService.js');
-          const detailedUserInfo = await UserService.getUserInfo(this.token);
-
-          if (detailedUserInfo) {
-            // Prioritize getUserInfo data over login data - use getUserInfo as primary source
-            this.userData = { ...detailedUserInfo, ...this.userData };
-
-            // Validate user rank permissions
-            const uploadPermission = UserService.canUserUpload(this.userData);
-            console.log('🎖️ Upload permission check:', uploadPermission);
-
-            // Store rank validation result
-            this.userData._rankValidation = uploadPermission.rankValidation;
-            this.userData._canUpload = uploadPermission.canUpload;
-            this.userData._uploadRestrictionReason = uploadPermission.reason;
-
-            // Update localStorage with enhanced user data (getUserInfo priority)
-            localStorage.setItem('opensubtitles_user_data', JSON.stringify(this.userData));
-
-            console.log(
-              '✅ Enhanced user info retrieved via getUserInfo (using as primary data source)'
-            );
-            console.log('📋 Enhanced user data:', this.userData);
-
-            if (!uploadPermission.canUpload) {
-              console.log(
-                '⚠️ User login successful but upload access restricted:',
-                uploadPermission.reason
-              );
-            }
-          } else {
-            console.log('⚠️ getUserInfo failed or returned no data, using login data only');
-          }
-        } catch (getUserInfoError) {
-          console.warn('⚠️ getUserInfo call failed after login:', getUserInfoError.message);
-          console.log('📝 Continuing with basic login data only');
-        }
-
-        return {
-          success: true,
-          token: this.token,
-          userData: this.userData,
-          isAnonymous: !username,
-          message: `Login successful as ${this.userData.UserNickName || 'Anonymous'}`,
-        };
-      } else {
-        console.error('❌ Login failed - invalid response status:', response?.status);
-        console.error('❌ Full response:', response);
-        throw new Error(response?.status || 'Login failed');
+      if (!response || response.status !== 200 || !response.token) {
+        const message = response?.message || 'Login failed';
+        await this.clearAuthData();
+        return { success: false, error: message, message: `Login failed: ${message}` };
       }
-    } catch (error) {
-      console.error('❌ Login failed with error:', error);
-      console.error('❌ Error type:', error.constructor.name);
-      console.error('❌ Error message:', error.message);
-      console.error('❌ Error stack:', error.stack);
 
-      // Clear any existing authentication data
-      await this.clearAuthData();
+      this.token = response.token;
+      this.userData = adaptRestUser(response.user, {
+        username,
+        baseUrl: response.base_url,
+      });
+      this.isAuthenticated = true;
+      authStore.setToken(this.token);
+
+      logSensitiveData('🔐 JWT received', this.token, 'token');
+
+      // Persist
+      this._writeStorage(this.token, this.userData);
+
+      // Best-effort enhancement via /infos/user (gives quota fields some servers
+      // omit from /login; if it fails, we proceed with login data only)
+      try {
+        const enhanced = await authApi.getUserInfo();
+        if (enhanced) {
+          this.userData = mergeRefreshedUser(this.userData, enhanced);
+          this._writeStorage(this.token, this.userData);
+        }
+      } catch (err) {
+        // Non-fatal — we already have the login response
+        // eslint-disable-next-line no-console
+        console.warn('[authService] /infos/user enhancement failed (non-fatal):', err?.message);
+      }
 
       return {
+        success: true,
+        token: this.token,
+        userData: this.userData,
+        isAnonymous: false,
+        message: `Login successful as ${this.userData?.username || 'User'}`,
+      };
+    } catch (err) {
+      // Surface server-friendly message when available (e.g. lockout text)
+      const serverMessage =
+        err?.details?.message ||
+        err?.message ||
+        'Network error';
+      await this.clearAuthData();
+      return {
         success: false,
-        error: error.message,
-        message: `Login failed: ${error.message}`,
+        error: serverMessage,
+        message: `Login failed: ${serverMessage}`,
       };
     }
   }
 
   /**
-   * Login with MD5 hashed password for security
-   * @param {string} username - Username
-   * @param {string} password - Plain text password (will be hashed)
-   * @param {string} language - ISO 639-1 language code
-   * @returns {Promise<Object>} Login response
-   */
-  async loginWithHash(username, password, language = 'en') {
-    // Import crypto-js for MD5 hashing
-    const CryptoJS = await import('crypto-js');
-    const hashedPassword = CryptoJS.MD5(password).toString();
-
-    return this.login(username, hashedPassword, language);
-  }
-
-  /**
-   * Logout from OpenSubtitles
-   * @returns {Promise<Object>} Logout response
+   * Log out. Calls the server best-effort, then clears local state regardless.
    */
   async logout() {
     try {
-      console.log('🔐 Attempting logout from OpenSubtitles...');
-
       if (this.token) {
-        // Make XML-RPC call to LogOut method
-        const response = await xmlrpcCall('LogOut', [this.token]);
-        console.log('🔐 Logout response:', response);
+        await authApi.logout();
       }
-
-      // Clear authentication data regardless of API response
+    } catch (err) {
+      // Already best-effort inside authApi.logout — defensive double-catch
+      // eslint-disable-next-line no-console
+      console.warn('[authService] logout API call failed:', err?.message);
+    } finally {
       await this.clearAuthData();
-
-      console.log('✅ Logout successful');
-      return {
-        success: true,
-        message: 'Logout successful',
-      };
-    } catch (error) {
-      console.error('❌ Logout failed:', error);
-
-      // Clear auth data even if logout API call failed
-      await this.clearAuthData();
-
-      return {
-        success: false,
-        error: error.message,
-        message: 'Logout completed (with errors)',
-      };
     }
+    return { success: true, message: 'Logout successful' };
   }
 
+  // ---------------------------------------------------------------------
+  // Session validation
+  // ---------------------------------------------------------------------
+
   /**
-   * Check if user is currently authenticated by calling GetUserInfo with session ID
-   * @param {string} sessionId - Optional session ID to check (from URL parameter)
-   * @returns {Promise<Object>} User info if authenticated, null if not
+   * Verify the current token is still valid by fetching /infos/user.
+   * If `tokenOverride` is supplied, temporarily uses that token (for the
+   * URL-handoff scenario).
+   *
+   * Returns the user data on success (and updates state); null on failure.
    */
-  async checkAuthStatus(sessionId = null) {
+  async checkAuthStatus(tokenOverride = null) {
+    const tokenToUse = tokenOverride || this.token;
+    if (!tokenToUse) return null;
+
+    const previousToken = this.token;
+    this.token = tokenToUse;
+    authStore.setToken(this.token);
+
     try {
-      console.log('🔐 Checking authentication status with GetUserInfo...');
-
-      // Use provided sessionId or stored token
-      const tokenToUse = sessionId || this.token || '';
-      logSensitiveData('🔐 Using token', tokenToUse, 'token');
-
-      // Use UserService caching for GetUserInfo calls
-      const { UserService } = await import('./userService.js');
-      const userData = await UserService.getUserInfo(tokenToUse);
-
-      if (userData) {
-        console.log('✅ User is authenticated via session ID');
-        console.log('✅ User data:', userData);
-
-        // Store the valid session data
-        this.token = tokenToUse;
-        this.isAuthenticated = true;
-        this.userData = userData;
-
-        return userData;
-      } else {
-        console.log('❌ User is not authenticated');
+      const restUser = await authApi.getUserInfo();
+      if (!restUser) {
+        // /infos/user returned empty body — treat as expired
         await this.clearAuthData();
         return null;
       }
-    } catch (error) {
-      console.log('❌ Authentication check failed:', error.message);
-      await this.clearAuthData();
-      return null;
+
+      this.userData = mergeRefreshedUser(this.userData, restUser);
+      this.isAuthenticated = true;
+      this._writeStorage(this.token, this.userData);
+      return this.userData;
+    } catch (err) {
+      // 401 (AuthError) → clear; other errors → treat as transient, keep stored data
+      if (err?.status === 401) {
+        await this.clearAuthData();
+        return null;
+      }
+      // Roll back the token optimistic write
+      this.token = previousToken;
+      authStore.setToken(this.token);
+      throw err;
     }
   }
 
-  /**
-   * Check if user is currently authenticated
-   * @returns {boolean} Authentication status
-   */
+  // ---------------------------------------------------------------------
+  // State accessors (for components / hooks)
+  // ---------------------------------------------------------------------
+
   isLoggedIn() {
-    return this.isAuthenticated && this.token;
+    return this.isAuthenticated && !!this.token;
   }
 
-  /**
-   * Get current authentication token
-   * @returns {string|null} Current token
-   */
   getToken() {
     return this.token;
   }
 
-  /**
-   * Get current user data
-   * @returns {Object|null} Current user data
-   */
   getUserData() {
     return this.userData;
   }
 
-  /**
-   * Check if current user is anonymous
-   * @returns {boolean} True if anonymous user
-   */
   isAnonymous() {
-    return !this.userData?.UserNickName || this.userData.UserNickName === '';
+    return !this.isAuthenticated || !this.userData?.username;
   }
 
-  /**
-   * Get user's preferred languages
-   * @returns {string[]} Array of language codes
-   */
   getUserPreferredLanguages() {
-    if (!this.userData?.UserPreferedLanguages) return ['en'];
-    return this.userData.UserPreferedLanguages.split(',').map(lang => lang.trim());
+    // .com doesn't expose this; default to English
+    return ['en'];
   }
 
   /**
-   * Restore authentication from localStorage
-   * @returns {Promise<boolean>} True if authentication was restored
+   * Headers helper kept for any caller still using it (legacy compat).
+   * The unified REST client uses `getApiHeaders()` from constants.js +
+   * authStore.getToken() so this is rarely needed.
+   */
+  getAuthHeaders() {
+    return {
+      'User-Agent': this.userAgent,
+      ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+    };
+  }
+
+  // ---------------------------------------------------------------------
+  // Persistence
+  // ---------------------------------------------------------------------
+
+  /**
+   * Restore auth state from localStorage on app start. Does NOT validate
+   * with the server — caller (AuthContext) does that next via checkAuthStatus.
+   *
+   * @returns {Promise<boolean>} true iff state was hydrated
    */
   async restoreAuthFromStorage() {
     try {
-      const token = localStorage.getItem('opensubtitles_token');
-      const userData = localStorage.getItem('opensubtitles_user_data');
-      const loginTime = localStorage.getItem('opensubtitles_login_time');
+      const token = this._safeGet(STORAGE_KEYS.JWT);
+      const userJson = this._safeGet(STORAGE_KEYS.USER);
+      const loginTimeStr = this._safeGet(STORAGE_KEYS.LOGIN_TIME);
 
-      if (token && userData && loginTime) {
-        // Check if token is not too old (24 hours)
-        const now = Date.now();
-        const loginTimestamp = parseInt(loginTime);
-        const tokenAge = now - loginTimestamp;
-        const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+      if (!token || !userJson || !loginTimeStr) return false;
 
-        if (tokenAge < maxAge) {
-          this.token = token;
-          this.userData = JSON.parse(userData);
-          this.isAuthenticated = true;
-
-          console.log('✅ Authentication restored from storage');
-          console.log('👤 User:', this.userData.UserNickName || 'Anonymous');
-          return true;
-        } else {
-          console.log('🕐 Stored token expired, clearing...');
-          await this.clearAuthData();
-        }
+      const ageMs = Date.now() - parseInt(loginTimeStr, 10);
+      if (Number.isNaN(ageMs) || ageMs < 0 || ageMs > MAX_HYDRATE_AGE_MS) {
+        // Sanity guard — hugely stale or clock-skewed; throw away and re-login
+        await this.clearAuthData();
+        return false;
       }
-    } catch (error) {
-      console.error('❌ Failed to restore authentication:', error);
+
+      this.token = token;
+      this.userData = JSON.parse(userJson);
+      this.isAuthenticated = true;
+      authStore.setToken(this.token);
+      return true;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[authService] restoreAuthFromStorage failed:', err?.message);
       await this.clearAuthData();
+      return false;
     }
-    return false;
   }
 
   /**
-   * Clear all authentication data
+   * Wipe in-memory state, localStorage keys, and any user-info cache.
    */
   async clearAuthData() {
     this.token = null;
     this.userData = null;
     this.isAuthenticated = false;
+    authStore.setToken(null);
 
-    // Clear localStorage
-    localStorage.removeItem('opensubtitles_token');
-    localStorage.removeItem('opensubtitles_user_data');
-    localStorage.removeItem('opensubtitles_login_time');
+    this._safeRemove(STORAGE_KEYS.JWT);
+    this._safeRemove(STORAGE_KEYS.USER);
+    this._safeRemove(STORAGE_KEYS.LOGIN_TIME);
 
-    // Clear UserService cache when auth data is cleared (avoid circular import)
+    // Defer-import UserService to break the circular dep
     try {
       const { UserService } = await import('./userService.js');
       UserService.clearUserInfoCache();
-    } catch (error) {
-      console.warn('⚠️ Could not clear UserService cache:', error.message);
+    } catch (err) {
+      // First-load timing — fine to ignore
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Internals
+  // ---------------------------------------------------------------------
+
+  _writeStorage(token, userData) {
+    this._safeSet(STORAGE_KEYS.JWT, token);
+    this._safeSet(STORAGE_KEYS.USER, JSON.stringify(userData));
+    this._safeSet(STORAGE_KEYS.LOGIN_TIME, Date.now().toString());
+  }
+
+  _safeGet(key) {
+    try {
+      return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  _safeSet(key, value) {
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
+    } catch {
+      /* quota / private mode — ignore */
+    }
+  }
+
+  _safeRemove(key) {
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+    } catch {
+      /* ignore */
     }
   }
 
   /**
-   * Get authentication headers for API requests
-   * @returns {Object} Headers object
+   * Called by authStore.onAuthExpired() (which restClient triggers on 401).
+   * Clears state + dispatches a window event for the UI to react to.
    */
-  getAuthHeaders() {
-    return {
-      'User-Agent': this.userAgent,
-      'Accept-Language': this.userData?.UserWebLanguage || 'en',
-    };
+  async _handleAuthExpired() {
+    await this.clearAuthData();
+    if (typeof window !== 'undefined' && typeof CustomEvent === 'function') {
+      try {
+        window.dispatchEvent(new CustomEvent('osdb:auth-expired'));
+      } catch {
+        /* ignore in non-browser envs */
+      }
+    }
   }
 }
 
-// Create singleton instance
 const authService = new AuthService();
 
-// Try to restore authentication on module load (async)
-authService.restoreAuthFromStorage().catch(error => {
-  console.warn('⚠️ Failed to restore authentication on module load:', error.message);
+// Auto-restore on module load
+authService.restoreAuthFromStorage().catch((err) => {
+  // eslint-disable-next-line no-console
+  console.warn('[authService] restore-on-load failed:', err?.message);
 });
 
 export default authService;

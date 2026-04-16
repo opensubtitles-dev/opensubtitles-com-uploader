@@ -7,8 +7,7 @@ import {
 import { CacheService } from '../cache.js';
 import { retryAsync } from '../../utils/retryUtils.js';
 import { delayedFetch } from '../../utils/networkUtils.js';
-import authService from '../authService.js';
-import { detectSession, logSessionDetection } from '../../utils/sessionUtils.js';
+import { logSessionDetection } from '../../utils/sessionUtils.js';
 import { logSensitiveData } from '../../utils/securityUtils.js';
 
 /**

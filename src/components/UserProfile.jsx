@@ -227,7 +227,7 @@ const UserProfile = () => {
                   {/* View Profile Link */}
                   {user?.IDUser && (
                     <a
-                      href={`https://www.opensubtitles.org/profile/iduser-${user.IDUser}`}
+                      href={`${user?.base_url || 'https://www.opensubtitles.com'}/users/${user.IDUser}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={`w-full flex items-center px-3 py-2 text-sm rounded-lg transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}

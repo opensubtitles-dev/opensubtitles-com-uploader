@@ -1,289 +1,229 @@
-import { XmlRpcService } from './api/xmlrpc.js';
+/**
+ * User session service — REST GET /infos/user with 1-hour caching.
+ *
+ * Replaces the legacy XML-RPC GetUserInfo flow. Field accessors operate on
+ * the adapted user object produced by `services/api/userData.js`, which
+ * exposes BOTH the new fields (`username`, `level`, ...) AND the legacy
+ * XML-RPC names (`UserNickName`, `UserRank`, `IDUser`) for back-compat with
+ * existing components.
+ */
+
+import { authApi } from './api/auth.js';
+import { adaptRestUser, mergeRefreshedUser } from './api/userData.js';
 import authService from './authService.js';
-import { detectSession, logSessionDetection } from '../utils/sessionUtils.js';
 import { logSensitiveData } from '../utils/securityUtils.js';
 
-/**
- * User session service for OpenSubtitles authentication
- */
 export class UserService {
-  // Cache for getUserInfo responses (1 hour TTL)
-  static _userInfoCache = new Map();
-  static _cacheExpiry = 60 * 60 * 1000; // 1 hour in milliseconds
+  // ---------------------------------------------------------------------
+  // Cache (1-hour TTL, in-memory, per-token key)
+  // ---------------------------------------------------------------------
 
-  /**
-   * Clear expired cache entries
-   * @private
-   */
+  static _userInfoCache = new Map();
+  static _cacheExpiry = 60 * 60 * 1000; // 1 hour
+
   static _cleanExpiredCache() {
     const now = Date.now();
     for (const [key, entry] of this._userInfoCache) {
-      if (now > entry.expiresAt) {
-        this._userInfoCache.delete(key);
-        console.log('🗑️ Expired getUserInfo cache entry removed');
-      }
+      if (now > entry.expiresAt) this._userInfoCache.delete(key);
     }
   }
 
-  /**
-   * Clear all getUserInfo cache entries
-   * Call this when user logs out or authentication changes
-   */
+  /** Wipe the cache. Called by authService.clearAuthData() on logout. */
   static clearUserInfoCache() {
-    const cacheSize = this._userInfoCache.size;
     this._userInfoCache.clear();
-    if (cacheSize > 0) {
-      console.log(`🗑️ Cleared ${cacheSize} getUserInfo cache entries`);
-    }
   }
 
-  /**
-   * Get session ID using unified session detection
-   * @returns {string} - Session ID or empty string
-   */
-  static getSessionId() {
-    // Use unified session detection system
-    const sessionDetection = logSessionDetection('UserService.getSessionId');
+  // ---------------------------------------------------------------------
+  // Fetch
+  // ---------------------------------------------------------------------
 
-    if (sessionDetection.sessionId) {
-      logSensitiveData(
-        `👤 UserService: ✅ Using session from ${sessionDetection.source}`,
-        sessionDetection.sessionId,
-        'session'
-      );
-      return sessionDetection.sessionId;
+  /**
+   * Fetch user info via GET /infos/user, cached 1 hour by current JWT.
+   *
+   * @param {string|null} [_sessionId]  unused; kept for back-compat with the legacy signature
+   * @param {Function|null} [addDebugInfo] optional debug callback
+   * @param {boolean} [bypassCache] force a fresh fetch
+   * @returns {Promise<object|null>} adapted user object, or null if not authenticated
+   */
+  static async getUserInfo(_sessionId = null, addDebugInfo = null, bypassCache = false) {
+    this._cleanExpiredCache();
+
+    const token = authService.getToken() || '';
+    if (!token) {
+      addDebugInfo && addDebugInfo('👤 No JWT — anonymous; skipping /infos/user');
+      return null;
     }
 
-    console.log('👤 UserService: No session found, using empty string');
-    return '';
-  }
-
-  /**
-   * Get user info using XML-RPC GetUserInfo with 1-hour caching
-   * @param {string} sessionId - Session ID (unused now, using token from XmlRpcService)
-   * @param {Function} addDebugInfo - Debug callback (optional)
-   * @param {boolean} bypassCache - Force bypass cache (optional, default: false)
-   * @returns {Promise<Object>} - User info object
-   */
-  static async getUserInfo(sessionId, addDebugInfo = null, bypassCache = false) {
-    try {
-      // Clean expired cache entries first
-      this._cleanExpiredCache();
-
-      // Get current token for cache key
-      const currentToken = authService.getToken() || sessionId || '';
-      const cacheKey = currentToken;
-
-      // Check cache if not bypassing
-      if (!bypassCache && cacheKey && this._userInfoCache.has(cacheKey)) {
-        const cachedEntry = this._userInfoCache.get(cacheKey);
-        const now = Date.now();
-
-        if (now < cachedEntry.expiresAt) {
-          console.log(
-            `📄 Using cached getUserInfo (${Math.round((cachedEntry.expiresAt - now) / 1000 / 60)}min remaining): ${cachedEntry.data?.UserNickName || 'Unknown'}`
+    if (!bypassCache && this._userInfoCache.has(token)) {
+      const cached = this._userInfoCache.get(token);
+      if (Date.now() < cached.expiresAt) {
+        addDebugInfo &&
+          addDebugInfo(
+            `📄 Cached /infos/user (${Math.round((cached.expiresAt - Date.now()) / 60000)}min remaining)`
           );
-
-          if (addDebugInfo) {
-            addDebugInfo(
-              `📄 Used cached user info (${Math.round((cachedEntry.expiresAt - now) / 1000 / 60)}min remaining): ${cachedEntry.data?.UserNickName || 'Unknown'}`
-            );
-          }
-
-          return cachedEntry.data;
-        } else {
-          // Expired cache entry
-          this._userInfoCache.delete(cacheKey);
-          console.log('🗑️ Removed expired cache entry');
-        }
+        return cached.data;
       }
+      this._userInfoCache.delete(token);
+    }
 
-      if (addDebugInfo) {
-        addDebugInfo(
-          `👤 Fetching fresh user info via XML-RPC GetUserInfo${bypassCache ? ' (cache bypassed)' : ''}`
-        );
-      }
+    try {
+      addDebugInfo && addDebugInfo('👤 Fetching fresh /infos/user');
+      logSensitiveData('👤 GET /infos/user with JWT', token, 'token');
 
-      const userData = await XmlRpcService.getUserInfo();
-
-      if (userData === null) {
-        // User is not logged in (401 response handled gracefully)
-        if (addDebugInfo) {
-          addDebugInfo(`👤 User is not logged in`);
-        }
+      const restUser = await authApi.getUserInfo();
+      if (!restUser) {
+        addDebugInfo && addDebugInfo('👤 Empty /infos/user response');
         return null;
       }
 
-      // Cache the successful response
-      if (cacheKey) {
-        const cacheEntry = {
-          data: userData,
-          cachedAt: Date.now(),
-          expiresAt: Date.now() + this._cacheExpiry,
-        };
-        this._userInfoCache.set(cacheKey, cacheEntry);
-        console.log(`💾 Cached getUserInfo for 1 hour: ${userData?.UserNickName || 'Unknown'}`);
-      }
+      // Merge into authService's existing userData (preserves username from login)
+      const existing = authService.getUserData();
+      const merged = mergeRefreshedUser(existing, restUser);
 
-      if (addDebugInfo) {
-        addDebugInfo(
-          `✅ Fresh user info loaded and cached: ${userData?.UserNickName || 'Unknown'}`
-        );
-      }
+      this._userInfoCache.set(token, {
+        data: merged,
+        cachedAt: Date.now(),
+        expiresAt: Date.now() + this._cacheExpiry,
+      });
 
-      return userData;
-    } catch (error) {
-      if (addDebugInfo) {
-        addDebugInfo(`❌ Failed to get user info via XML-RPC: ${error.message}`);
+      addDebugInfo &&
+        addDebugInfo(`✅ /infos/user fetched and cached: ${merged?.username || 'User'}`);
+      return merged;
+    } catch (err) {
+      // 401 means token expired — restClient already cleared auth via authStore
+      if (err?.status === 401) {
+        addDebugInfo && addDebugInfo('👤 Session expired (401)');
+        return null;
       }
-      throw error;
+      addDebugInfo && addDebugInfo(`❌ /infos/user failed: ${err?.message}`);
+      throw err;
     }
   }
 
-  /**
-   * Extract username from XML-RPC GetUserInfo response
-   * @param {Object} userInfo - User info response from XML-RPC GetUserInfo
-   * @returns {string} - Username or 'Anonymous'
-   */
+  // ---------------------------------------------------------------------
+  // Field accessors — work against the adapted shape
+  // ---------------------------------------------------------------------
+
   static getUsername(userInfo) {
-    return userInfo?.UserNickName || 'Anonymous';
+    return userInfo?.username || userInfo?.UserNickName || 'Anonymous';
   }
 
-  /**
-   * Check if user is logged in
-   * @param {Object} userInfo - User info response from XML-RPC GetUserInfo
-   * @returns {boolean} - True if user is logged in
-   */
   static isLoggedIn(userInfo) {
-    return !!(userInfo?.UserNickName && userInfo?.IDUser);
+    return Boolean(userInfo?.username || userInfo?.UserNickName);
   }
 
-  /**
-   * Get user's preferred languages
-   * @param {Object} userInfo - User info response from XML-RPC GetUserInfo
-   * @returns {string} - Comma-separated language codes
-   */
   static getPreferredLanguages(userInfo) {
     return userInfo?.UserPreferedLanguages || '';
   }
 
-  /**
-   * Get user's rank/role
-   * @param {Object} userInfo - User info response from XML-RPC GetUserInfo
-   * @returns {string} - User rank
-   */
   static getUserRank(userInfo) {
-    return userInfo?.UserRank || '';
+    return userInfo?.level || userInfo?.UserRank || '';
   }
 
-  /**
-   * Get user's upload count
-   * @param {Object} userInfo - User info response from XML-RPC GetUserInfo
-   * @returns {number} - Upload count
-   */
+  static getUserRanks(userInfo) {
+    if (Array.isArray(userInfo?.UserRanks) && userInfo.UserRanks.length > 0) {
+      return userInfo.UserRanks;
+    }
+    const single = this.getUserRank(userInfo);
+    return single ? [single] : [];
+  }
+
   static getUploadCount(userInfo) {
     return parseInt(userInfo?.UploadCnt) || 0;
   }
 
-  /**
-   * Get user's download count
-   * @param {Object} userInfo - User info response from XML-RPC GetUserInfo
-   * @returns {number} - Download count
-   */
   static getDownloadCount(userInfo) {
     return parseInt(userInfo?.DownloadCnt) || 0;
   }
 
-  /**
-   * Get user's ranks array
-   * @param {Object} userInfo - User info response from XML-RPC GetUserInfo
-   * @returns {Array} - Array of user ranks
-   */
-  static getUserRanks(userInfo) {
-    return userInfo?.UserRanks || [];
-  }
+  // ---------------------------------------------------------------------
+  // Permission checks
+  // ---------------------------------------------------------------------
 
   /**
-   * Check if user has sufficient rank to use the application
-   * @param {Object} userInfo - User info response from XML-RPC GetUserInfo
-   * @returns {Object} - { allowed: boolean, reason: string, userRanks: Array }
+   * Validate that the user's level is allowed to upload. The .com server's
+   * anti-abuse pipeline is the source of truth — this client-side check is
+   * an early UX hint only. We err on the side of allowing; the server
+   * rejects with `error_code: "banned"` etc. when needed.
    */
   static validateUserRank(userInfo) {
-    const userRanks = this.getUserRanks(userInfo);
-    const currentRank = this.getUserRank(userInfo);
+    const ranks = this.getUserRanks(userInfo);
+    const current = this.getUserRank(userInfo);
+    const effective = ranks.length > 0 ? ranks : current ? [current] : [];
 
-    // Create effective ranks array - use UserRanks if available, otherwise fall back to UserRank
-    const effectiveRanks = userRanks.length > 0 ? userRanks : currentRank ? [currentRank] : [];
-
-    // Allowed ranks for application usage
-    const allowedRanks = [
-      'super admin',
-      'translator',
-      'trusted member',
-      'administrator',
-      'moderator',
-      'gold member',
-      'platinum member',
-      'trusted',
-      'subtranslator',
-      'os legend',
-    ];
-
-    // Explicitly forbidden ranks
-    const forbiddenRanks = ['read only'];
-
-    // Check for forbidden ranks first (higher priority)
-    const hasForbiddenRank = effectiveRanks.some(rank =>
-      forbiddenRanks.some(forbidden => rank.toLowerCase().includes(forbidden.toLowerCase()))
+    // Forbidden — explicit deny
+    const forbiddenSubstrings = ['read only'];
+    const forbidden = effective.find(rank =>
+      forbiddenSubstrings.some(f => rank.toLowerCase().includes(f.toLowerCase()))
     );
-
-    if (hasForbiddenRank) {
-      const forbiddenRank = effectiveRanks.find(rank =>
-        forbiddenRanks.some(forbidden => rank.toLowerCase().includes(forbidden.toLowerCase()))
-      );
-      console.log('❌ User has forbidden rank:', forbiddenRank);
+    if (forbidden) {
       return {
         allowed: false,
-        reason: `Access denied: Your account has "${forbiddenRank}" restriction which prevents uploading.`,
-        userRanks: effectiveRanks,
-        forbiddenRank: forbiddenRank,
+        reason: `Access denied: Your account has "${forbidden}" restriction which prevents uploading.`,
+        userRanks: effective,
+        forbiddenRank: forbidden,
       };
     }
 
-    // Check if user has any allowed rank
-    const hasAllowedRank = effectiveRanks.some(rank =>
-      allowedRanks.some(allowed => rank.toLowerCase().trim() === allowed.toLowerCase().trim())
+    // Allowed list — covers .com level names + legacy .org rank names
+    const allowedExact = new Set(
+      [
+        // .com levels (Standard → admin)
+        'sub leecher',
+        'bronze member',
+        'silver member',
+        'gold member',
+        'platinum member',
+        'trusted member',
+        'translator',
+        'application developers',
+        'vip member',
+        'vip+ member',
+        'vip++ member',
+        'vip lifetime',
+        'opensubtitles legends',
+        'administrator',
+        'superadministrator',
+        // legacy .org names (kept for compatibility with cached data)
+        'super admin',
+        'moderator',
+        'trusted',
+        'subtranslator',
+        'os legend',
+      ].map(s => s.toLowerCase().trim())
     );
 
-    if (hasAllowedRank) {
-      const matchedRank = effectiveRanks.find(rank =>
-        allowedRanks.some(allowed => rank.toLowerCase().trim() === allowed.toLowerCase().trim())
-      );
+    const matched = effective.find(rank => allowedExact.has(rank.toLowerCase().trim()));
+    if (matched) {
       return {
         allowed: true,
-        reason: `Access granted with rank: ${matchedRank}`,
-        userRanks: effectiveRanks,
-        allowedRank: matchedRank,
+        reason: `Access granted with level: ${matched}`,
+        userRanks: effective,
+        allowedRank: matched,
       };
     }
 
-    // User doesn't have sufficient rank
-    console.log('❌ User does not have sufficient rank for application access');
+    // VIP fast-path — if the .com user object had vip: true it would have
+    // been mapped to a level above. This catches odd cases where vip is set
+    // on the new user object directly.
+    if (userInfo?.vip === true) {
+      return {
+        allowed: true,
+        reason: 'Access granted (VIP)',
+        userRanks: effective,
+        allowedRank: 'vip',
+      };
+    }
+
     return {
       allowed: false,
-      reason: `Access denied: Your account rank "${currentRank}" is not sufficient for uploading. Required ranks: ${allowedRanks.join(', ')}.`,
-      userRanks: effectiveRanks,
-      currentRank: currentRank,
+      reason: `Account level "${current || 'unknown'}" is not in the upload-allowed list.`,
+      userRanks: effective,
+      currentRank: current,
     };
   }
 
-  /**
-   * Check if user can upload (combines login status and rank validation)
-   * @param {Object} userInfo - User info response from XML-RPC GetUserInfo
-   * @returns {Object} - { canUpload: boolean, reason: string, rankValidation: Object }
-   */
   static canUserUpload(userInfo) {
-    // First check if user is logged in
     if (!this.isLoggedIn(userInfo)) {
       return {
         canUpload: false,
@@ -291,14 +231,11 @@ export class UserService {
         rankValidation: null,
       };
     }
-
-    // Then validate user rank
     const rankValidation = this.validateUserRank(userInfo);
-
     return {
       canUpload: rankValidation.allowed,
       reason: rankValidation.reason,
-      rankValidation: rankValidation,
+      rankValidation,
     };
   }
 }
