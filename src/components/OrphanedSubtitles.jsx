@@ -5,6 +5,7 @@ import { MovieDisplay } from './MovieDisplay.jsx';
 import { SubtitleUploadOptions, SubtitleUploadOptionsPanel } from './SubtitleUploadOptions.jsx';
 import { MovieSearch } from './MovieSearch.jsx';
 import { openExternal } from '../utils/urlUtils.jsx';
+import { featuresApi } from '../services/api/features.js';
 
 export const OrphanedSubtitles = ({
   orphanedSubtitles,
@@ -263,41 +264,37 @@ export const OrphanedSubtitles = ({
     }
   };
 
-  // Debounced movie search - RE-ENABLED
+  // Debounced movie search — uses .com REST /features endpoint
   React.useEffect(() => {
     if (!movieSearchQuery.trim()) {
       setMovieSearchResults([]);
       return;
     }
+    const controller = new AbortController();
     const timeoutId = setTimeout(async () => {
       setMovieSearchLoading(true);
       try {
         const query = movieSearchQuery.trim();
         const imdbId = extractImdbId(query);
 
-        // If it's an IMDB ID input, search using the IMDB ID directly
-        if (imdbId) {
-          const response = await fetch(
-            `https://www.opensubtitles.org/libs/suggest_imdb.php?m=${imdbId}`
-          );
-          const results = await response.json();
-          setMovieSearchResults(results || []);
-        } else {
-          // Regular text search
-          const response = await fetch(
-            `https://www.opensubtitles.org/libs/suggest_imdb.php?m=${encodeURIComponent(query)}`
-          );
-          const results = await response.json();
-          setMovieSearchResults(results || []);
-        }
+        const { data } = imdbId
+          ? await featuresApi.byImdbId(imdbId, { signal: controller.signal })
+          : await featuresApi.searchByQuery(query, { signal: controller.signal });
+
+        setMovieSearchResults(data);
       } catch (error) {
-        console.error('Movie search error:', error);
-        setMovieSearchResults([]);
+        if (error?.name !== 'AbortError') {
+          console.error('Movie search error:', error);
+          setMovieSearchResults([]);
+        }
       } finally {
         setMovieSearchLoading(false);
       }
     }, 300); // 300ms debounce
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [movieSearchQuery]);
 
   // Click outside to close movie search

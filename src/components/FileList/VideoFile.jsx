@@ -5,7 +5,7 @@ import {
   formatImdbId,
   getImdbUrl,
 } from '../../utils/fileUtils.js';
-import { XmlRpcService } from '../../services/api/xmlrpc.js';
+import { featuresApi } from '../../services/api/features.js';
 
 export const VideoFile = ({
   video,
@@ -37,35 +37,11 @@ export const VideoFile = ({
 
     setIsSearching(true);
     try {
-      let results = [];
+      const { data } = isImdbInput(query)
+        ? await featuresApi.byImdbId(query)
+        : await featuresApi.searchByQuery(query);
 
-      // Check if it's an IMDb ID or URL
-      if (isImdbInput(query)) {
-        let imdbId = query;
-        if (query.includes('imdb.com')) {
-          const match = query.match(/\/title\/(tt\d+)/i);
-          imdbId = match ? match[1] : query;
-        }
-        if (imdbId.startsWith('tt')) {
-          imdbId = imdbId.substring(2);
-        }
-
-        // For IMDb ID input, try to get movie details
-        try {
-          const movieData = await XmlRpcService.guessMovieFromStringWithRetry(query);
-          if (movieData && movieData.title) {
-            results = [movieData];
-          }
-        } catch (error) {
-          console.log('Direct IMDb lookup failed, trying search');
-        }
-      } else {
-        // Regular search
-        const searchResults = await XmlRpcService.searchMovies(query);
-        results = searchResults || [];
-      }
-
-      setMovieSearchResults(results.slice(0, 10)); // Limit to 10 results
+      setMovieSearchResults(data.slice(0, 10)); // Limit to 10 results
     } catch (error) {
       console.error('Movie search error:', error);
       setMovieSearchResults([]);
