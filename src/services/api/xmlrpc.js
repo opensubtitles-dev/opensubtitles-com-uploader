@@ -216,62 +216,8 @@ export class XmlRpcService {
   }
 
   // Note: login() method removed - all other XML-RPC methods use PHPSESSID cookie authentication
-
-  /**
-   * Get supported languages for upload
-   */
-  static async getSubLanguages() {
-    try {
-      // Check cache first
-      const cached = CacheService.loadFromCache(CACHE_KEYS.XMLRPC_LANGUAGES);
-      if (cached) {
-        return { data: cached, fromCache: true };
-      }
-
-      const xmlRpcBody = `<?xml version="1.0"?>
-<methodCall>
-  <methodName>GetSubLanguages</methodName>
-  <params>
-    <param><value><string>en</string></value></param>
-  </params>
-</methodCall>`;
-
-      const response = await delayedFetch(API_ENDPOINTS.OPENSUBTITLES_XMLRPC, {
-        method: 'POST',
-        headers: getApiHeaders('text/xml'),
-        body: xmlRpcBody,
-      });
-
-      if (!response.ok) {
-        throw new Error(`XML-RPC request failed: ${response.status} ${response.statusText}`);
-      }
-
-      const xmlText = await response.text();
-      const xmlDoc = this.parseXmlRpcResponse(xmlText);
-
-      const languages = [];
-      const arrayData = xmlDoc.querySelector('methodResponse param value array data');
-
-      if (arrayData) {
-        const structElements = arrayData.querySelectorAll('value struct');
-
-        structElements.forEach(struct => {
-          const language = this.extractStructData(struct);
-          if (Object.keys(language).length > 0) {
-            languages.push(language);
-          }
-        });
-      }
-
-      // Save to cache
-      CacheService.saveToCache(CACHE_KEYS.XMLRPC_LANGUAGES, languages);
-
-      return { data: languages, fromCache: false };
-    } catch (error) {
-      console.error('XML-RPC GetSubLanguages failed:', error);
-      throw error;
-    }
-  }
+  // Note: getSubLanguages() removed in Phase 2 — replaced by REST `GET /api/v1/infos/languages`
+  //       (see src/services/api/languages.js + src/hooks/useLanguageData.js).
 
   /**
    * Generate cache key for movie guessing
@@ -558,61 +504,9 @@ export class XmlRpcService {
     }
   }
 
-  /**
-   * Search for movies using XML-RPC API
-   * @param {string} query - Search query
-   * @returns {Promise<Array>} - Array of movie results
-   */
-  static async searchMovies(query) {
-    try {
-      const token = this.getAuthToken();
-
-      const xmlRpcBody = `<?xml version="1.0"?>
-<methodCall>
-  <methodName>SearchMoviesOnIMDB</methodName>
-  <params>
-    <param><value><string>${token}</string></value></param>
-    <param><value><string>${this.escapeXmlContent(query)}</string></value></param>
-  </params>
-</methodCall>`;
-
-      const response = await delayedFetch(API_ENDPOINTS.OPENSUBTITLES_XMLRPC, {
-        method: 'POST',
-        headers: getApiHeaders('text/xml'),
-        body: xmlRpcBody,
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `XML-RPC SearchMoviesOnIMDB failed: ${response.status} ${response.statusText}`
-        );
-      }
-
-      const xmlText = await response.text();
-      const xmlDoc = this.parseXmlRpcResponse(xmlText);
-
-      // Parse response
-      const responseStruct = xmlDoc.querySelector('methodResponse param value struct');
-      if (responseStruct) {
-        const result = this.extractStructData(responseStruct);
-
-        // Extract movie data from response
-        if (result.data && Array.isArray(result.data)) {
-          return result.data;
-        } else if (result.data) {
-          // Sometimes data is not in array format
-          return [result.data];
-        }
-
-        return [];
-      }
-
-      return [];
-    } catch (error) {
-      console.error('SearchMoviesOnIMDB failed:', error);
-      throw error;
-    }
-  }
+  // Note: searchMovies() removed in Phase 2 — it was dead code (never called).
+  //       Movie autocomplete now goes through `featuresApi.searchByQuery()` /
+  //       `featuresApi.byImdbId()` (src/services/api/features.js).
 
   /**
    * Guess movie from filename with retry logic
