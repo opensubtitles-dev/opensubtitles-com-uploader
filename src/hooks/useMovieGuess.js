@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { XmlRpcService } from '../services/api/xmlrpc.js';
+import { uploadApi } from '../services/api/upload.js';
 import { OpenSubtitlesApiService } from '../services/api/openSubtitlesApi.js';
 import { MovieHashService } from '../services/movieHash.js';
 import { OfflineGuessItService } from '../services/offlineGuessItService.js';
 import { detectVideoFileInfo, getBestMovieDetectionName } from '../utils/fileUtils.js';
+import { retryAsync } from '../utils/retryUtils.js';
 
 /**
  * Custom hook for movie guessing and hash calculation
@@ -304,10 +305,17 @@ export const useMovieGuess = (addDebugInfo, setGuessItDataForFile) => {
         }));
 
         // First attempt: try with the actual filename
-        let movieGuess = await XmlRpcService.guessMovieFromStringWithRetry(
-          videoFile.name,
-          addDebugInfo
-        );
+        const guessOnce = async input => {
+          const result = await retryAsync(
+            () => uploadApi.guess(input),
+            3,
+            2000,
+            (attempt, max) => attempt > 1 && addDebugInfo(`🔄 guess retry ${attempt}/${max}`)
+          );
+          return result?.best_guess || null;
+        };
+
+        let movieGuess = await guessOnce(videoFile.name);
 
         // Check if we got a valid movie guess (not just an empty response)
         const isValidMovieGuess =
@@ -323,10 +331,7 @@ export const useMovieGuess = (addDebugInfo, setGuessItDataForFile) => {
             addDebugInfo(
               `Primary guess failed, trying directory name fallback: "${directoryName}"`
             );
-            movieGuess = await XmlRpcService.guessMovieFromStringWithRetry(
-              directoryName,
-              addDebugInfo
-            );
+            movieGuess = await guessOnce(directoryName);
 
             if (movieGuess) {
               // Mark that this was identified from directory
