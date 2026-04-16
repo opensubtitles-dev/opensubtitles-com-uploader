@@ -4,6 +4,7 @@ import { useTheme } from '../../contexts/ThemeContext.jsx';
 import { useMyUploads } from '../../hooks/useMyUploads.js';
 import { UploadHistoryList } from './UploadHistoryList.jsx';
 import { UploadHistoryFilters } from './UploadHistoryFilters.jsx';
+import { ErrorBanner } from '../ErrorBanner.jsx';
 
 /**
  * Top-level upload history tab.
@@ -78,22 +79,7 @@ export default function UploadHistory() {
         {loading ? (
           <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Loading…</p>
         ) : error ? (
-          <div
-            className={`p-4 rounded border ${
-              isDark
-                ? 'bg-red-900/20 border-red-700 text-red-200'
-                : 'bg-red-50 border-red-300 text-red-700'
-            }`}
-          >
-            <div className="font-medium">Couldn’t load your uploads.</div>
-            <div className="text-sm mt-1 opacity-80">{error.message || String(error)}</div>
-            <button
-              onClick={refetch}
-              className="mt-2 text-sm underline opacity-90 hover:opacity-100"
-            >
-              Try again
-            </button>
-          </div>
+          <ErrorBanner error={error} onRetry={refetch} />
         ) : data.length === 0 ? (
           <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>
             No uploads yet — drop a subtitle on the upload tab to get started.
