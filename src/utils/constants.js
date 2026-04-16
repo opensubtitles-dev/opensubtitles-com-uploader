@@ -46,11 +46,13 @@ export const validateApiConfiguration = () => {
 };
 
 // Cache Configuration
+// Legacy XMLRPC_* keys removed in Phase 2; their migration is handled by
+// utils/storageKeys.js#migrateLegacyKeys on first launch. New cache keys
+// for the REST era live under the rest_* namespace (see CACHE_PREFIXES in
+// storageKeys.js).
 export const CACHE_KEYS = {
   LANGUAGES: 'opensubtitles_languages_cache',
   LANGUAGES_EXPIRY: 'opensubtitles_languages_cache_expiry',
-  XMLRPC_LANGUAGES: 'opensubtitles_xmlrpc_languages_cache',
-  XMLRPC_LANGUAGES_EXPIRY: 'opensubtitles_xmlrpc_languages_cache_expiry',
   GUESSIT_CACHE: 'opensubtitles_guessit_cache',
   GUESSIT_CACHE_EXPIRY: 'opensubtitles_guessit_cache_expiry',
   MOVIE_GUESS_CACHE: 'opensubtitles_movie_guess_cache',
@@ -59,8 +61,6 @@ export const CACHE_KEYS = {
   LANGUAGE_DETECTION_CACHE_EXPIRY: 'opensubtitles_language_detection_cache_expiry',
   FEATURES_CACHE: 'opensubtitles_features_cache',
   FEATURES_CACHE_EXPIRY: 'opensubtitles_features_cache_expiry',
-  XMLRPC_CHECKSUB: 'opensubtitles_xmlrpc_checksub_cache',
-  XMLRPC_CHECKSUB_EXPIRY: 'opensubtitles_xmlrpc_checksub_cache_expiry',
   DEBUG_MODE: 'opensubtitles_debug_mode',
 };
 
@@ -214,9 +214,10 @@ export const ARCHIVE_MIME_TYPES = [
 ];
 
 // API Endpoints - public URLs
+// OPENSUBTITLES_XMLRPC removed in Phase 2 — no code targets the legacy
+// .org XML-RPC API anymore.
 export const API_ENDPOINTS = {
   OPENSUBTITLES_REST: 'https://api.opensubtitles.com/api/v1',
-  OPENSUBTITLES_XMLRPC: 'https://api.opensubtitles.org/xml-rpc',
   LANGUAGE_DETECTION:
     'https://api.opensubtitles.com/api/v1/utilities/fasttext/language/detect/file',
   SUPPORTED_LANGUAGES: 'https://api.opensubtitles.com/api/v1/utilities/fasttext/language/supported',

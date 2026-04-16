@@ -33,8 +33,8 @@ export const AdBlockTestPage = () => {
         category: 'api',
       },
       {
-        name: 'XML-RPC API',
-        url: 'https://api.opensubtitles.org/xml-rpc',
+        name: 'OpenSubtitles Features API',
+        url: 'https://api.opensubtitles.com/api/v1/features',
         status: 'pending',
         error: null,
         time: null,

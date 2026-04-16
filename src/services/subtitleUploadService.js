@@ -1,4 +1,10 @@
-import { XmlRpcService } from './api/xmlrpc.js';
+import {
+  uploadApi,
+  adaptLegacyCheckPayload,
+  adaptLegacyCommitPayload,
+  restCheckResponseToLegacy,
+  restCommitResponseToLegacy,
+} from './api/upload.js';
 import { SubtitleHashService } from './subtitleHash.js';
 import { HD_DETECTION_REGEX } from '../utils/constants.js';
 import { cleanReleaseName } from '../utils/releaseNameUtils.js';
@@ -123,9 +129,10 @@ export class SubtitleUploadService {
               getVideoMetadata,
             });
 
-            const tryUploadResponse = await XmlRpcService.tryUploadSubtitles(
-              uploadData,
-              config.uploadAsAnonymous === true
+            const tryUploadResponse = restCheckResponseToLegacy(
+              await uploadApi.check(adaptLegacyCheckPayload(uploadData), {
+                anonymous: config.uploadAsAnonymous === true,
+              })
             );
 
             addDebugInfo(`✅ TryUpload response received for ${subtitle.name}:`);
@@ -170,9 +177,10 @@ export class SubtitleUploadService {
                   getVideoMetadata,
                 });
 
-                actualUploadResponse = await XmlRpcService.uploadSubtitles(
-                  actualUploadData,
-                  config.uploadAsAnonymous === true
+                actualUploadResponse = restCommitResponseToLegacy(
+                  await uploadApi.commit(adaptLegacyCommitPayload(actualUploadData), {
+                    anonymous: config.uploadAsAnonymous === true,
+                  })
                 );
 
                 addDebugInfo(`✅ UploadSubtitles response received for ${subtitle.name}:`);
@@ -357,9 +365,10 @@ export class SubtitleUploadService {
             orphanedSubtitlesFps,
           });
 
-          const tryUploadResponse = await XmlRpcService.tryUploadSubtitles(
-            uploadData,
-            config.uploadAsAnonymous === true
+          const tryUploadResponse = restCheckResponseToLegacy(
+            await uploadApi.check(adaptLegacyCheckPayload(uploadData), {
+              anonymous: config.uploadAsAnonymous === true,
+            })
           );
 
           addDebugInfo(`✅ TryUpload response received for ${subtitle.name}:`);
@@ -403,9 +412,10 @@ export class SubtitleUploadService {
                 orphanedSubtitlesFps,
               });
 
-              actualUploadResponse = await XmlRpcService.uploadSubtitles(
-                actualUploadData,
-                config.uploadAsAnonymous === true
+              actualUploadResponse = restCommitResponseToLegacy(
+                await uploadApi.commit(adaptLegacyCommitPayload(actualUploadData), {
+                  anonymous: config.uploadAsAnonymous === true,
+                })
               );
 
               addDebugInfo(`✅ UploadSubtitles response received for ${subtitle.name}:`);
