@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useMovieSearch } from '../hooks/useMovieSearch.js';
+import { StubFeatureDialog } from './StubFeatureDialog.jsx';
 
 export const MovieSearch = ({
   isOpen,
@@ -19,6 +20,8 @@ export const MovieSearch = ({
     extractImdbId,
     isImdbInput,
   } = useMovieSearch(onMovieChange);
+
+  const [stubOpen, setStubOpen] = useState(false);
 
   if (!isOpen) return null;
 
@@ -151,8 +154,16 @@ export const MovieSearch = ({
       )}
 
       {movieSearchQuery && !movieSearchLoading && movieSearchResults.length === 0 && (
-        <div className="mt-2 text-sm text-center py-4" style={{ color: themeColors.textMuted }}>
-          No movies found. Try a different search term.
+        <div className="mt-2 text-sm text-center py-4 space-y-2" style={{ color: themeColors.textMuted }}>
+          <div>No movies found. Try a different search term.</div>
+          <button
+            type="button"
+            onClick={() => setStubOpen(true)}
+            className="text-sm underline"
+            style={{ color: themeColors.primary || themeColors.link }}
+          >
+            Movie not in database? Create a new entry →
+          </button>
         </div>
       )}
 
@@ -160,6 +171,17 @@ export const MovieSearch = ({
         Examples: "The Matrix", "133093", "0133093", "tt0133093",
         "https://www.imdb.com/title/tt0133093/"
       </div>
+
+      {stubOpen && (
+        <StubFeatureDialog
+          initialTitle={movieSearchQuery}
+          onCreated={movieGuess => {
+            setStubOpen(false);
+            handleMovieSelect(itemPath, movieGuess);
+          }}
+          onCancel={() => setStubOpen(false)}
+        />
+      )}
     </div>
   );
 };
