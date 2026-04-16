@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext.jsx';
 import SubtitleUploader from './components/SubtitleUploader.jsx';
 import AdBlockTestPage from './components/AdBlockTestPage.jsx';
 import RankRestrictionWarning from './components/RankRestrictionWarning.jsx';
+import UploadHistory from './components/history/UploadHistory.jsx';
 import { logAppInit } from './utils/appLogger.js';
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
         <RankRestrictionWarning />
         <Routes>
           <Route path="/" element={<SubtitleUploader />} />
+          <Route path="/history" element={<UploadHistory />} />
           <Route path="/adblock" element={<AdBlockTestPage />} />
         </Routes>
       </Router>
