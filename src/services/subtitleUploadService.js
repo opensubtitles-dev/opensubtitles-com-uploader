@@ -374,8 +374,10 @@ export class SubtitleUploadService {
             orphanedSubtitlesFps,
           });
 
+          // Phase E step 3 — uploadData is REST-flat (orphaned variant);
+          // adapter dropped. Response translator stays for now.
           const tryUploadResponse = restCheckResponseToLegacy(
-            await uploadApi.check(adaptLegacyCheckPayload(uploadData), {
+            await uploadApi.check(uploadData, {
               anonymous: config.uploadAsAnonymous === true,
             })
           );
@@ -421,8 +423,10 @@ export class SubtitleUploadService {
                 orphanedSubtitlesFps,
               });
 
+              // Phase E step 3 — actualUploadData is REST-flat (orphaned);
+              // adapter dropped. Response translator stays for now.
               actualUploadResponse = restCommitResponseToLegacy(
-                await uploadApi.commit(adaptLegacyCommitPayload(actualUploadData), {
+                await uploadApi.commit(actualUploadData, {
                   anonymous: config.uploadAsAnonymous === true,
                 })
               );
@@ -933,9 +937,8 @@ export class SubtitleUploadService {
       addDebugInfo(`   - No movie fields included (orphaned subtitle for TryUploadSubtitles)`);
       addDebugInfo(`   - IMDb ID will be used later in UploadSubtitles: ${uploadImdbId}`);
 
-      return {
-        subtitles: [subtitleEntry], // Always single subtitle
-      };
+      // Phase E step 3 (2026-05-06) — REST-flat shape, mirror of step 1.
+      return subtitleEntry;
     } catch (error) {
       addDebugInfo(`❌ Failed to prepare orphaned subtitle ${subtitle.name}: ${error.message}`);
       throw error;
@@ -1022,7 +1025,6 @@ export class SubtitleUploadService {
         );
       }
 
-      // Prepare baseinfo section (only include fields we can determine for orphaned subtitles)
       // Clean the release name by removing language codes and extra markers
       const rawReleaseName = subtitle.name.replace(/\.(srt|sub|ass|ssa|vtt)$/i, '');
       const cleanedReleaseName = cleanReleaseName(rawReleaseName, combinedLanguages);
@@ -1033,35 +1035,38 @@ export class SubtitleUploadService {
         addDebugInfo(`   - After: "${cleanedReleaseName}"`);
       }
 
-      const baseinfo = {
-        idmovieimdb: uploadImdbId,
-        moviereleasename: subtitleOptions.moviereleasename || cleanedReleaseName, // Use custom release name or cleaned subtitle name
-        movieaka: subtitleOptions.movieaka || '', // Movie title in subtitle language
-        sublanguageid: languageId,
-        subauthorcomment: subtitleOptions.subauthorcomment || '',
-        hearingimpaired: finalHearingimpaired || '0',
-        highdefinition: finalHigdefinition || '0',
-        automatictranslation: subtitleOptions.automatictranslation || '0',
-        subtranslator: subtitleOptions.subtranslator || '',
-        foreignpartsonly: finalForeignpartsonly || '0',
-      };
-
-      // DEBUG: Log the final baseinfo values before they're sent to XML-RPC
-
       // Get FPS setting for this subtitle
       const subtitleFps = orphanedSubtitlesFps[subtitle.fullPath];
 
-      // Prepare cd1 section (no movie file data for orphaned subtitles)
-      const cd1 = {
-        subhash: subtitleInfo.hash, // Use same hash as TryUploadSubtitles (MD5 of original content)
+      // Phase E step 3 (2026-05-06) — REST-flat shape, mirror of step 2.
+      // Orphaned subtitles omit moviehash/moviebytesize/moviefilename
+      // (no associated video file). FPS is the only video-derived field
+      // a user can supply for an orphan.
+      const toBool01 = v => v === '1' || v === 1 || v === true;
+
+      const uploadObject = {
+        // Identification (mirrors /check shape from step 3 prepare-orphaned)
+        subhash: subtitleInfo.hash,
         subfilename: subtitle.name,
         subcontent: subtitleInfo.contentGzipBase64,
-        // No movie data included for orphaned subtitles (moviehash, moviebytesize, moviefilename)
+        idmovieimdb: uploadImdbId,
+        sublanguageid: languageId,
+
+        // Optional FPS (orphan can supply this without movie file)
+        ...(subtitleFps && subtitleFps !== '' ? { moviefps: subtitleFps } : {}),
+
+        // Metadata (was baseinfo)
+        release_name: subtitleOptions.moviereleasename || cleanedReleaseName,
+        movie_aka: subtitleOptions.movieaka || '',
+        author_comments: subtitleOptions.subauthorcomment || '',
+        translator: subtitleOptions.subtranslator || '',
+        hearing_impaired: toBool01(finalHearingimpaired),
+        high_definition: toBool01(finalHigdefinition),
+        foreign_parts_only: toBool01(finalForeignpartsonly),
+        automatic_translation: toBool01(subtitleOptions.automatictranslation),
       };
 
-      // Add FPS if specified (only if not empty)
       if (subtitleFps && subtitleFps !== '') {
-        cd1.moviefps = subtitleFps;
         addDebugInfo(`   - FPS: ${subtitleFps}`);
       } else {
         addDebugInfo(`   - FPS: Not specified`);
@@ -1074,7 +1079,7 @@ export class SubtitleUploadService {
       addDebugInfo(
         `   - Compressed content length: ${subtitleInfo.contentGzipBase64.length} chars (base64)`
       );
-      addDebugInfo(`   - No movie fields in cd1 (orphaned subtitle)`);
+      addDebugInfo(`   - No movie fields included (orphaned subtitle)`);
 
       // DEBUG: Verify compression round-trip for this specific upload
       try {
@@ -1094,25 +1099,11 @@ export class SubtitleUploadService {
         addDebugInfo(`   - DEBUG verification failed: ${debugError.message}`);
       }
 
-      // Final debug logging of the complete upload object right before XML-RPC call
-      const uploadObject = {
-        baseinfo,
-        cd1,
-        // Return the exact subcontent data for debugging/download purposes
-        subcontent: subtitleInfo.contentGzipBase64,
-      };
-
-      addDebugInfo(`🔍 FINAL UPLOAD OBJECT FOR XML-RPC (${subtitle.name}):`);
+      addDebugInfo(`🔍 FINAL UPLOAD OBJECT (REST-flat) for ${subtitle.name}:`);
       addDebugInfo(`   - Complete upload object: ${JSON.stringify(uploadObject, null, 2)}`);
-      addDebugInfo(
-        `   - uploadObject.baseinfo.highdefinition: "${uploadObject.baseinfo.highdefinition}"`
-      );
-      addDebugInfo(
-        `   - uploadObject.baseinfo.hearingimpaired: "${uploadObject.baseinfo.hearingimpaired}"`
-      );
-      addDebugInfo(
-        `   - uploadObject.baseinfo.foreignpartsonly: "${uploadObject.baseinfo.foreignpartsonly}"`
-      );
+      addDebugInfo(`   - uploadObject.high_definition: ${uploadObject.high_definition}`);
+      addDebugInfo(`   - uploadObject.hearing_impaired: ${uploadObject.hearing_impaired}`);
+      addDebugInfo(`   - uploadObject.foreign_parts_only: ${uploadObject.foreign_parts_only}`);
 
       return uploadObject;
     } catch (error) {
