@@ -131,14 +131,11 @@ export class SubtitleUploadService {
               getVideoMetadata,
             });
 
-            // Phase E step 1 — uploadData is already REST-flat shape; no
-            // adapter needed. Response still translated to legacy for
-            // downstream consumers (handled in step 4).
-            const tryUploadResponse = restCheckResponseToLegacy(
-              await uploadApi.check(uploadData, {
-                anonymous: config.uploadAsAnonymous === true,
-              })
-            );
+            // Phase E step 4 — REST-native: payload flat, response read
+            // directly from REST envelope (no legacy translator).
+            const tryUploadResponse = await uploadApi.check(uploadData, {
+              anonymous: config.uploadAsAnonymous === true,
+            });
 
             addDebugInfo(`✅ TryUpload response received for ${subtitle.name}:`);
             addDebugInfo(JSON.stringify(tryUploadResponse, null, 2));
@@ -147,21 +144,19 @@ export class SubtitleUploadService {
             let actualUploadData = null;
             let actualUploadResponse = null;
 
-            // If alreadyindb=0, need to do actual upload with UploadSubtitles
-            if (tryUploadResponse.alreadyindb === 0 || tryUploadResponse.alreadyindb === '0') {
+            // If not already in DB, need to do actual upload (REST commit)
+            if (tryUploadResponse.already_in_db === false) {
               // Check if uploadMovieHashOnly is enabled
               if (config.uploadMovieHashOnly === true) {
                 addDebugInfo(
-                  `⚙️ Upload MovieHash Only mode enabled - skipping UploadSubtitles for ${subtitle.name}`
+                  `⚙️ Upload MovieHash Only mode enabled - skipping commit for ${subtitle.name}`
                 );
                 addDebugInfo(
                   `✅ Movie hash updated for ${subtitle.name}, subtitle file not uploaded`
                 );
-                // Use TryUpload response but mark as hash-only success
+                // Reuse the check response, mark as hash-only success.
                 finalResponse = {
                   ...tryUploadResponse,
-                  status: '200 OK',
-                  data: 'Movie hash updated (subtitle not uploaded)',
                   hashOnlyMode: true,
                 };
               } else {
@@ -182,13 +177,11 @@ export class SubtitleUploadService {
                   getVideoMetadata,
                 });
 
-                // Phase E step 2 — actualUploadData is already REST-flat;
-                // adapter dropped. Response translator stays for now.
-                actualUploadResponse = restCommitResponseToLegacy(
-                  await uploadApi.commit(actualUploadData, {
-                    anonymous: config.uploadAsAnonymous === true,
-                  })
-                );
+                // Phase E step 4 — REST-native: payload flat, response read
+                // directly from REST envelope (no legacy translator).
+                actualUploadResponse = await uploadApi.commit(actualUploadData, {
+                  anonymous: config.uploadAsAnonymous === true,
+                });
 
                 addDebugInfo(`✅ UploadSubtitles response received for ${subtitle.name}:`);
                 addDebugInfo(JSON.stringify(actualUploadResponse, null, 2));
@@ -197,7 +190,7 @@ export class SubtitleUploadService {
               }
             } else {
               addDebugInfo(
-                `✅ Subtitle already in database for ${subtitle.name} (alreadyindb=${tryUploadResponse.alreadyindb})`
+                `✅ Subtitle already in database for ${subtitle.name} (duplicate_of=${tryUploadResponse.duplicate_of})`
               );
             }
 
@@ -211,34 +204,37 @@ export class SubtitleUploadService {
 
             results.processedSubtitles++;
 
-            // Analyze result and update counters
+            // Phase E step 4 — classify against the REST envelope.
+            //   - hashOnlyMode → success (synthesized when upload was skipped)
+            //   - already_in_db (check response) → exists
+            //   - subtitle_id (commit response) → success, possibly with download_url
+            //   - else → unknown (defensive; shouldn't happen)
             const response = finalResponse;
             let status = 'unknown';
             let message = 'Upload completed';
             let url = null;
 
-            if (response.status && response.status !== '200 OK') {
-              status = 'failed';
-              message = `Upload failed - ${response.status}`;
-              results.failed++;
-            } else if (response.alreadyindb === 1 || response.alreadyindb === '1') {
+            if (response.hashOnlyMode) {
+              status = 'success';
+              message = 'Movie hash updated (subtitle not uploaded)';
+              results.successful++;
+            } else if (response.already_in_db === true) {
               status = 'exists';
               message = 'Already in database';
               results.alreadyExists++;
-              url =
-                typeof response.data === 'string' && response.data.startsWith('http')
-                  ? response.data
-                  : null;
-            } else if (response.status === '200 OK' && response.data && !response.alreadyindb) {
+              // /check doesn't return a download_url; duplicate_of is the existing subtitle_id.
+              url = null;
+            } else if (response.subtitle_id) {
+              // Commit response — server accepted the upload.
               status = 'success';
-              message = 'Successfully uploaded as new subtitle';
+              message =
+                response.status === 'flagged_for_review'
+                  ? 'Uploaded — flagged for review'
+                  : 'Successfully uploaded as new subtitle';
               results.successful++;
-              url =
-                typeof response.data === 'string' && response.data.startsWith('http')
-                  ? response.data
-                  : null;
+              url = response.download_url || null;
             } else {
-              // Handle other cases
+              // Defensive fallback (e.g. non-2xx slipped through somehow).
               results.successful++;
               status = 'success';
               message = 'Upload completed';
@@ -374,13 +370,10 @@ export class SubtitleUploadService {
             orphanedSubtitlesFps,
           });
 
-          // Phase E step 3 — uploadData is REST-flat (orphaned variant);
-          // adapter dropped. Response translator stays for now.
-          const tryUploadResponse = restCheckResponseToLegacy(
-            await uploadApi.check(uploadData, {
-              anonymous: config.uploadAsAnonymous === true,
-            })
-          );
+          // Phase E step 4 — REST-native (orphaned variant).
+          const tryUploadResponse = await uploadApi.check(uploadData, {
+            anonymous: config.uploadAsAnonymous === true,
+          });
 
           addDebugInfo(`✅ TryUpload response received for ${subtitle.name}:`);
           addDebugInfo(JSON.stringify(tryUploadResponse, null, 2));
@@ -389,21 +382,18 @@ export class SubtitleUploadService {
           let actualUploadData = null;
           let actualUploadResponse = null;
 
-          // If alreadyindb=0, need to do actual upload with UploadSubtitles
-          if (tryUploadResponse.alreadyindb === 0 || tryUploadResponse.alreadyindb === '0') {
+          // If not already in DB, need to do actual upload (REST commit)
+          if (tryUploadResponse.already_in_db === false) {
             // Check if uploadMovieHashOnly is enabled
             if (config.uploadMovieHashOnly === true) {
               addDebugInfo(
-                `⚙️ Upload MovieHash Only mode enabled - skipping UploadSubtitles for orphaned ${subtitle.name}`
+                `⚙️ Upload MovieHash Only mode enabled - skipping commit for orphaned ${subtitle.name}`
               );
               addDebugInfo(
                 `✅ Movie hash updated for orphaned ${subtitle.name}, subtitle file not uploaded`
               );
-              // Use TryUpload response but mark as hash-only success
               finalResponse = {
                 ...tryUploadResponse,
-                status: '200 OK',
-                data: 'Movie hash updated (subtitle not uploaded)',
                 hashOnlyMode: true,
               };
             } else {
@@ -423,13 +413,10 @@ export class SubtitleUploadService {
                 orphanedSubtitlesFps,
               });
 
-              // Phase E step 3 — actualUploadData is REST-flat (orphaned);
-              // adapter dropped. Response translator stays for now.
-              actualUploadResponse = restCommitResponseToLegacy(
-                await uploadApi.commit(actualUploadData, {
-                  anonymous: config.uploadAsAnonymous === true,
-                })
-              );
+              // Phase E step 4 — REST-native (orphaned variant).
+              actualUploadResponse = await uploadApi.commit(actualUploadData, {
+                anonymous: config.uploadAsAnonymous === true,
+              });
 
               addDebugInfo(`✅ UploadSubtitles response received for ${subtitle.name}:`);
               addDebugInfo(JSON.stringify(actualUploadResponse, null, 2));
@@ -438,7 +425,7 @@ export class SubtitleUploadService {
             }
           } else {
             addDebugInfo(
-              `✅ Orphaned subtitle already in database for ${subtitle.name} (alreadyindb=${tryUploadResponse.alreadyindb})`
+              `✅ Orphaned subtitle already in database for ${subtitle.name} (duplicate_of=${tryUploadResponse.duplicate_of})`
             );
           }
 
@@ -457,34 +444,30 @@ export class SubtitleUploadService {
 
           results.processedSubtitles++;
 
-          // Analyze result and update counters
+          // Phase E step 4 — REST-aware classification (mirror of paired path).
           const response = finalResponse;
           let status = 'unknown';
           let message = 'Upload completed';
           let url = null;
 
-          if (response.status && response.status !== '200 OK') {
-            status = 'failed';
-            message = `Upload failed - ${response.status}`;
-            results.failed++;
-          } else if (response.alreadyindb === 1 || response.alreadyindb === '1') {
+          if (response.hashOnlyMode) {
+            status = 'success';
+            message = 'Movie hash updated (subtitle not uploaded)';
+            results.successful++;
+          } else if (response.already_in_db === true) {
             status = 'exists';
             message = 'Already in database';
             results.alreadyExists++;
-            url =
-              typeof response.data === 'string' && response.data.startsWith('http')
-                ? response.data
-                : null;
-          } else if (response.status === '200 OK' && response.data && !response.alreadyindb) {
+            url = null;
+          } else if (response.subtitle_id) {
             status = 'success';
-            message = 'Successfully uploaded as new subtitle';
+            message =
+              response.status === 'flagged_for_review'
+                ? 'Uploaded — flagged for review'
+                : 'Successfully uploaded as new subtitle';
             results.successful++;
-            url =
-              typeof response.data === 'string' && response.data.startsWith('http')
-                ? response.data
-                : null;
+            url = response.download_url || null;
           } else {
-            // Handle other cases
             results.successful++;
             status = 'success';
             message = 'Upload completed';
@@ -665,9 +648,9 @@ export class SubtitleUploadService {
   }
 
   /**
-   * Prepare upload data for actual UploadSubtitles (when alreadyindb=0)
+   * Prepare upload data for the REST commit endpoint (when /check returned already_in_db=false)
    * @param {Object} params - Parameters object
-   * @returns {Promise<Object>} - Upload data structure with baseinfo and cd1
+   * @returns {Promise<Object>} - Flat REST-shape payload (subhash, subfilename, subcontent, ...)
    */
   static async prepareActualUploadData({
     video,
@@ -946,9 +929,10 @@ export class SubtitleUploadService {
   }
 
   /**
-   * Prepare upload data for actual UploadSubtitles for orphaned subtitle (when alreadyindb=0)
+   * Prepare upload data for the REST commit endpoint for an orphaned subtitle
+   * (when /check returned already_in_db=false). Orphans omit moviehash / moviebytesize / moviefilename.
    * @param {Object} params - Parameters object
-   * @returns {Promise<Object>} - Upload data structure with baseinfo and cd1
+   * @returns {Promise<Object>} - Flat REST-shape payload (no moviehash/etc.)
    */
   static async prepareActualUploadDataForOrphanedSubtitle({
     subtitle,
