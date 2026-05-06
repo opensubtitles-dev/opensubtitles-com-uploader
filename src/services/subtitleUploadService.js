@@ -1,10 +1,4 @@
-import {
-  uploadApi,
-  adaptLegacyCheckPayload,
-  adaptLegacyCommitPayload,
-  restCheckResponseToLegacy,
-  restCommitResponseToLegacy,
-} from './api/upload.js';
+import { uploadApi } from './api/upload.js';
 import { SubtitleHashService } from './subtitleHash.js';
 import { HD_DETECTION_REGEX } from '../utils/constants.js';
 import { cleanReleaseName } from '../utils/releaseNameUtils.js';
