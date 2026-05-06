@@ -2013,13 +2013,15 @@ function SubtitleUploaderInner() {
           const videoFile = files.find(f => f.fullPath === filePath && f.isVideo);
           if (videoFile) {
             if (movieData.guessit) {
-              // Extract GuessIt data from XML-RPC response
-              addDebugInfo(`Extracting GuessIt data from XML-RPC for: ${videoFile.name}`);
+              // Extract GuessIt data already attached to movieData (from any
+              // upstream source: WASM guessit, REST /guess, or legacy path).
+              addDebugInfo(`Extracting GuessIt data from movieData for: ${videoFile.name}`);
               extractGuessItFromMovieData(movieData, filePath, videoFile.name);
             } else {
-              // No GuessIt data in XML-RPC response, use fallback API with delay
+              // No GuessIt data on movieData — fall back to a deferred API
+              // call so we don't race the movieData population.
               addDebugInfo(
-                `No GuessIt data in XML-RPC response for: ${videoFile.name}, using fallback API`
+                `No GuessIt data on movieData for: ${videoFile.name}, using fallback API`
               );
               setTimeout(() => {
                 const stillNeedGuessIt = getGuessItProcessingStatus(filePath);

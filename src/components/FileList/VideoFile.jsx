@@ -423,7 +423,9 @@ export const VideoFile = ({
                             )}
                           </>
                         ) : (
-                          /* Fallback to XML-RPC data */
+                          /* Fallback when REST /features didn't resolve —
+                           * uses movieGuess from any source (WASM guessit,
+                           * REST /guess, or legacy episode path). */
                           <>
                             {movieGuess.kind && (
                               <div>

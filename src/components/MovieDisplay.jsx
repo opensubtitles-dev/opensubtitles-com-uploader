@@ -938,7 +938,10 @@ export const MovieDisplay = ({
                   )}
                 </div>
               ) : (
-                /* Fallback to XML-RPC data only */
+                /* Fallback when REST /features lookup didn't return attributes —
+                 * data here may come from WASM guessit, REST /guess, or
+                 * useMovieGuess's legacy episode-aware path (until the server
+                 * /guess episode parity ticket lands). */
                 <div className="grid grid-cols-1 gap-2 text-xs">
                   {(bestMovieData.season && bestMovieData.season > 0) ||
                   (bestMovieData.episode && bestMovieData.episode > 0) ? (
