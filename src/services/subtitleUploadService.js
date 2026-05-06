@@ -111,7 +111,9 @@ export class SubtitleUploadService {
             return 0;
           });
 
-          addDebugInfo(`📋 Sorted ${subtitles.length} subtitles for ${video.name}: HI first, then non-HI`);
+          addDebugInfo(
+            `📋 Sorted ${subtitles.length} subtitles for ${video.name}: HI first, then non-HI`
+          );
 
           for (const subtitle of sortedSubtitles) {
             addDebugInfo(`📤 Attempting upload for subtitle: ${subtitle.name}`);
@@ -180,8 +182,10 @@ export class SubtitleUploadService {
                   getVideoMetadata,
                 });
 
+                // Phase E step 2 — actualUploadData is already REST-flat;
+                // adapter dropped. Response translator stays for now.
                 actualUploadResponse = restCommitResponseToLegacy(
-                  await uploadApi.commit(adaptLegacyCommitPayload(actualUploadData), {
+                  await uploadApi.commit(actualUploadData, {
                     anonymous: config.uploadAsAnonymous === true,
                   })
                 );
@@ -334,7 +338,9 @@ export class SubtitleUploadService {
       });
 
       if (enabledOrphanedSubtitles.length > 0) {
-        addDebugInfo(`📋 Sorted ${enabledOrphanedSubtitles.length} orphaned subtitles: HI first, then non-HI`);
+        addDebugInfo(
+          `📋 Sorted ${enabledOrphanedSubtitles.length} orphaned subtitles: HI first, then non-HI`
+        );
       }
 
       for (const subtitle of sortedOrphanedSubtitles) {
@@ -757,7 +763,6 @@ export class SubtitleUploadService {
         );
       }
 
-      // Prepare baseinfo section
       // Clean the release name by removing language codes and extra markers
       const rawReleaseName = video.name.replace(/\.(mkv|mp4|avi|mov|wmv|flv|webm)$/i, '');
       const cleanedReleaseName = cleanReleaseName(rawReleaseName, combinedLanguages);
@@ -768,37 +773,51 @@ export class SubtitleUploadService {
         addDebugInfo(`   - After: "${cleanedReleaseName}"`);
       }
 
-      const baseinfo = {
-        idmovieimdb: uploadImdbId,
-        moviereleasename: subtitleOptions.moviereleasename || cleanedReleaseName, // Use custom release name or cleaned video name
-        movieaka: subtitleOptions.movieaka || '', // Movie title in subtitle language
-        sublanguageid: languageId,
-        subauthorcomment: subtitleOptions.subauthorcomment || '',
-        hearingimpaired: finalHearingimpaired,
-        highdefinition: finalHigdefinition,
-        automatictranslation: subtitleOptions.automatictranslation || '0',
-        subtranslator: subtitleOptions.subtranslator || '',
-        foreignpartsonly: finalForeignpartsonly,
-      };
-
       // Get video metadata for upload parameters
       const videoMetadata = getVideoMetadata ? getVideoMetadata(video.fullPath) : null;
 
-      // Prepare cd1 section
-      const cd1 = {
-        subhash: subtitleInfo.hash, // Use same hash as TryUploadSubtitles (MD5 of original content)
+      // Phase E step 2 (2026-05-06) — emit REST-flat shape directly.
+      // The legacy `{ baseinfo, cd1, subcontent }` structure was the
+      // XML-RPC UploadSubtitles envelope; the REST endpoint expects flat.
+      // Field renames per docs/api/upload-v2-contract.md §2.2:
+      //   moviereleasename     -> release_name
+      //   movieaka             -> movie_aka
+      //   subauthorcomment     -> author_comments
+      //   subtranslator        -> translator
+      //   hearingimpaired      -> hearing_impaired   (boolean)
+      //   highdefinition       -> high_definition    (boolean)
+      //   foreignpartsonly     -> foreign_parts_only (boolean)
+      //   automatictranslation -> automatic_translation (boolean)
+      // cd1.* fields move to top level; subcontent stays at top level only.
+      const toBool01 = v => v === '1' || v === 1 || v === true;
+
+      const uploadObject = {
+        // Identification (mirrors /check shape from Step 1)
+        subhash: subtitleInfo.hash,
         subfilename: subtitle.name,
+        subcontent: subtitleInfo.contentGzipBase64,
         moviehash: video.movieHash,
         moviebytesize: video.size.toString(),
         moviefilename: video.name,
-        subcontent: subtitleInfo.contentGzipBase64,
+        idmovieimdb: uploadImdbId,
+        sublanguageid: languageId,
 
-        // Add video metadata parameters for OpenSubtitles API
+        // Optional video metadata
         ...(videoMetadata && {
           movietimems: videoMetadata.movietimems?.toString(),
           moviefps: videoMetadata.moviefps?.toString(),
           movieframes: videoMetadata.movieframes?.toString(),
         }),
+
+        // Metadata (was baseinfo)
+        release_name: subtitleOptions.moviereleasename || cleanedReleaseName,
+        movie_aka: subtitleOptions.movieaka || '',
+        author_comments: subtitleOptions.subauthorcomment || '',
+        translator: subtitleOptions.subtranslator || '',
+        hearing_impaired: toBool01(finalHearingimpaired),
+        high_definition: toBool01(finalHigdefinition),
+        foreign_parts_only: toBool01(finalForeignpartsonly),
+        automatic_translation: toBool01(subtitleOptions.automatictranslation),
       };
 
       addDebugInfo(`✅ Prepared actual upload data for: ${subtitle.name}`);
@@ -840,25 +859,11 @@ export class SubtitleUploadService {
         addDebugInfo(`   - DEBUG verification failed: ${debugError.message}`);
       }
 
-      // Final debug logging of the complete upload object right before XML-RPC call
-      const uploadObject = {
-        baseinfo,
-        cd1,
-        // Return the exact subcontent data for debugging/download purposes
-        subcontent: subtitleInfo.contentGzipBase64,
-      };
-
-      addDebugInfo(`🔍 FINAL UPLOAD OBJECT FOR XML-RPC (${subtitle.name}):`);
+      addDebugInfo(`🔍 FINAL UPLOAD OBJECT (REST-flat) for ${subtitle.name}:`);
       addDebugInfo(`   - Complete upload object: ${JSON.stringify(uploadObject, null, 2)}`);
-      addDebugInfo(
-        `   - uploadObject.baseinfo.highdefinition: "${uploadObject.baseinfo.highdefinition}"`
-      );
-      addDebugInfo(
-        `   - uploadObject.baseinfo.hearingimpaired: "${uploadObject.baseinfo.hearingimpaired}"`
-      );
-      addDebugInfo(
-        `   - uploadObject.baseinfo.foreignpartsonly: "${uploadObject.baseinfo.foreignpartsonly}"`
-      );
+      addDebugInfo(`   - uploadObject.high_definition: ${uploadObject.high_definition}`);
+      addDebugInfo(`   - uploadObject.hearing_impaired: ${uploadObject.hearing_impaired}`);
+      addDebugInfo(`   - uploadObject.foreign_parts_only: ${uploadObject.foreign_parts_only}`);
 
       return uploadObject;
     } catch (error) {
