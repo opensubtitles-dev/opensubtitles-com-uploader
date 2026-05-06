@@ -129,8 +129,11 @@ export class SubtitleUploadService {
               getVideoMetadata,
             });
 
+            // Phase E step 1 — uploadData is already REST-flat shape; no
+            // adapter needed. Response still translated to legacy for
+            // downstream consumers (handled in step 4).
             const tryUploadResponse = restCheckResponseToLegacy(
-              await uploadApi.check(adaptLegacyCheckPayload(uploadData), {
+              await uploadApi.check(uploadData, {
                 anonymous: config.uploadAsAnonymous === true,
               })
             );
@@ -640,9 +643,11 @@ export class SubtitleUploadService {
         addDebugInfo(`   - Video metadata: Not available`);
       }
 
-      return {
-        subtitles: [subtitleEntry], // Always single subtitle in cd1
-      };
+      // Phase E step 1 (2026-05-06) — return REST-flat shape directly.
+      // The legacy `{ subtitles: [...] }` envelope was an XML-RPC TryUploadSubtitles
+      // shape; the new .com server expects a flat object. Adapter call dropped at
+      // the call site in this same commit.
+      return subtitleEntry;
     } catch (error) {
       addDebugInfo(`❌ Failed to prepare subtitle ${subtitle.name}: ${error.message}`);
       throw error;
