@@ -32,16 +32,9 @@ export const MovieGroup = ({
   isDark,
 }) => {
   return (
-    <div
-      className="mb-6 rounded-lg p-4 shadow-sm"
-      style={{ backgroundColor: colors.cardBackground, border: `1px solid ${colors.border}` }}
-    >
+    <div className="mb-4 rounded-md p-4 bg-base-100 border border-base-300">
       {/* Directory Header */}
-      <div
-        className="font-medium mb-3 flex items-center gap-2 text-sm"
-        style={{ color: colors.link }}
-      >
-        <span>📁</span>
+      <div className="font-medium mb-3 flex items-center gap-2 text-sm text-primary">
         <span>{group.directory}</span>
       </div>
 

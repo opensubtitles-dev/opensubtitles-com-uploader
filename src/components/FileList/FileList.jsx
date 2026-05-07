@@ -100,12 +100,9 @@ export const FileList = ({
   const movieGroups = createMovieGroups();
 
   return (
-    <div
-      className="rounded-lg p-4 mb-6 shadow-sm"
-      style={{ backgroundColor: colors.cardBackground, border: `1px solid ${colors.border}` }}
-    >
-      <h3 className="font-semibold mb-2" style={{ color: colors.text }}>
-        Detected Files ({files.length}) - {files.filter(f => f.isVideo).length} videos,{' '}
+    <div className="rounded-md p-4 mb-6 shadow-sm bg-base-100 border border-base-300">
+      <h3 className="font-semibold mb-2 text-base-content">
+        Detected Files ({files.length}) — {files.filter(f => f.isVideo).length} videos,{' '}
         {files.filter(f => f.isSubtitle).length} subtitles
       </h3>
 
