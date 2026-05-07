@@ -11,16 +11,17 @@ module.exports = {
   daisyui: {
     themes: [
       {
+        // Match opensubtitles.com Nexus light: white cards, neutral zinc surrounds
         'osub-light': {
           primary: '#0ea5e9',
           'primary-content': '#ffffff',
           secondary: '#14b8a6',
           accent: '#f59e0b',
-          neutral: '#1f2937',
+          neutral: '#18181b',
           'base-100': '#ffffff',
-          'base-200': '#f3f4f6',
-          'base-300': '#e5e7eb',
-          'base-content': '#111827',
+          'base-200': '#fafafa',
+          'base-300': '#e4e4e7',
+          'base-content': '#18181b',
           info: '#3b82f6',
           success: '#10b981',
           warning: '#f59e0b',
@@ -31,16 +32,18 @@ module.exports = {
         },
       },
       {
+        // Match opensubtitles.com Nexus dark: near-black page, zinc-900 cards,
+        // no blue tint (was slate-900/800 before — too blueish per the .com palette)
         'osub-dark': {
           primary: '#38bdf8',
-          'primary-content': '#0c1018',
+          'primary-content': '#0a0a0a',
           secondary: '#2dd4bf',
           accent: '#fbbf24',
-          neutral: '#111827',
-          'base-100': '#0f172a',
-          'base-200': '#1e293b',
-          'base-300': '#334155',
-          'base-content': '#e5e7eb',
+          neutral: '#27272a',
+          'base-100': '#18181b',
+          'base-200': '#0a0a0a',
+          'base-300': '#27272a',
+          'base-content': '#e4e4e7',
           info: '#60a5fa',
           success: '#34d399',
           warning: '#fbbf24',
