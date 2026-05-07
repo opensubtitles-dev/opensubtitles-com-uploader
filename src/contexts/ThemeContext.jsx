@@ -62,11 +62,13 @@ export const ThemeProvider = ({ children }) => {
 
   // Apply dark mode class to document root
   useEffect(() => {
+    const root = document.documentElement;
     if (isDark) {
-      document.documentElement.classList.add('dark');
+      root.classList.add('dark');
     } else {
-      document.documentElement.classList.remove('dark');
+      root.classList.remove('dark');
     }
+    root.setAttribute('data-theme', isDark ? 'osub-dark' : 'osub-light');
   }, [isDark]);
 
   // Save theme preference to localStorage

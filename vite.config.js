@@ -85,7 +85,6 @@ export default defineConfig({
           // App chunks
           'services': [
             'src/services/api/openSubtitlesApi.js',
-            'src/services/api/xmlrpc.js',
             'src/services/cache.js',
             'src/services/movieHash.js',
             'src/services/subtitleHash.js',
