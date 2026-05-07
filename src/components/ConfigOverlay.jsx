@@ -204,12 +204,7 @@ export const ConfigOverlay = ({
       onClick={handleBackdropClick}
     >
       <div
-        className="relative w-full max-w-md mx-4 rounded-xl shadow-2xl border-2 max-h-[90vh] overflow-y-auto"
-        style={{
-          backgroundColor: colors.cardBackground,
-          borderColor: colors.border,
-          boxShadow: `0 25px 50px -12px ${colors.shadow}`,
-        }}
+        className="modal-box bg-base-100 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto p-0"
         onClick={e => e.stopPropagation()}
       >
         {/* Tab Navigation */}
