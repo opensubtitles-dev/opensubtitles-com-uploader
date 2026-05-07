@@ -29,9 +29,7 @@ export const HelpOverlay = ({
             <HelpCircle className="size-6 text-primary" />
             <div>
               <h2 className="text-xl font-semibold text-base-content">Help & Features</h2>
-              <p className="text-sm text-base-content/60">
-                OpenSubtitles Uploader v{APP_VERSION}
-              </p>
+              <p className="text-sm text-base-content/60">OpenSubtitles Uploader v{APP_VERSION}</p>
             </div>
           </div>
           <button
@@ -460,13 +458,13 @@ export const HelpOverlay = ({
                       Website
                     </div>
                     <a
-                      href="https://www.opensubtitles.org"
+                      href="https://www.opensubtitles.com"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="hover:underline"
                       style={{ color: colors.link }}
                     >
-                      OpenSubtitles.org
+                      opensubtitles.com
                     </a>
                   </div>
                 </div>

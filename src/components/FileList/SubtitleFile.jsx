@@ -1,6 +1,6 @@
 import React from 'react';
 import { formatFileSize } from '../../utils/fileUtils.js';
-import { openExternal } from '../../utils/urlUtils.jsx';
+import { openExternal, buildSubtitleViewUrl } from '../../utils/urlUtils.jsx';
 
 export const SubtitleFile = ({
   subtitle,
@@ -254,23 +254,31 @@ export const SubtitleFile = ({
                 }
 
                 // Check for successful new upload (from UploadSubtitles after alreadyindb=0)
-                if (result.status === '200 OK' && result.data && !result.alreadyindb) {
-                  // This is a successful new upload response
-                  const isDirectUrl =
-                    typeof result.data === 'string' && result.data.includes('opensubtitles.org');
+                if (
+                  (result.subtitle_id ||
+                    (result.status === '200 OK' && result.data && !result.alreadyindb)) &&
+                  result.already_in_db !== true
+                ) {
+                  // Successful new upload — REST shape (subtitle_id +
+                  // download_url) or legacy shape (data is the URL string).
+                  const newUrl =
+                    buildSubtitleViewUrl(result) ||
+                    (typeof result.data === 'string'
+                      ? buildSubtitleViewUrl(result.data)
+                      : null);
                   return (
                     <div className="text-sm">
                       <span className="text-green-400">🎉 Successfully Uploaded as NEW!</span>
-                      {isDirectUrl && (
+                      {newUrl && (
                         <>
                           <span className="text-gray-400"> - </span>
                           <button
                             className="text-blue-300 hover:text-blue-200 underline bg-transparent border-none cursor-pointer p-0 font-semibold inline"
-                            title="View newly uploaded subtitle on OpenSubtitles.org"
-                            onClick={e => {
+                            title="View newly uploaded subtitle on OpenSubtitles"
+                            onClick={async e => {
                               e.preventDefault();
                               e.stopPropagation();
-                              window.open(result.data, '_blank', 'noopener,noreferrer');
+                              await openExternal(newUrl);
                             }}
                           >
                             View New Subtitle
@@ -282,9 +290,16 @@ export const SubtitleFile = ({
                 }
 
                 // Check for alreadyindb=1 (subtitle already exists - duplicate)
-                if (result.alreadyindb === 1 || result.alreadyindb === '1') {
-                  // When alreadyindb=1, subtitle already exists in database (duplicate)
-                  const subtitleUrl = result.data;
+                if (
+                  result.alreadyindb === 1 ||
+                  result.alreadyindb === '1' ||
+                  result.already_in_db === true
+                ) {
+                  // Duplicate — REST shape exposes duplicate_of/feature.url; legacy
+                  // shape stuffed the URL into result.data.
+                  const subtitleUrl =
+                    buildSubtitleViewUrl(result) ||
+                    (typeof result.data === 'string' ? buildSubtitleViewUrl(result.data) : null);
 
                   return (
                     <div className="text-sm">
@@ -294,7 +309,7 @@ export const SubtitleFile = ({
                           <span className="text-gray-400"> - </span>
                           <button
                             className="text-blue-300 hover:text-blue-200 underline bg-transparent border-none cursor-pointer p-0 font-semibold inline"
-                            title="View existing subtitle on OpenSubtitles.org"
+                            title="View existing subtitle on OpenSubtitles"
                             onClick={async e => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -311,24 +326,21 @@ export const SubtitleFile = ({
                   // When alreadyindb=0, subtitle is not uploaded yet, show found existing subtitle info
                   const subtitleData = Array.isArray(result.data) ? result.data[0] : null;
                   const subtitleId = subtitleData?.IDSubtitle;
+                  const existingUrl = buildSubtitleViewUrl(subtitleId);
 
                   return (
                     <div className="text-sm">
                       <span className="text-orange-400">🔄 Found Existing</span>
-                      {subtitleId && (
+                      {existingUrl && (
                         <>
                           <span className="text-gray-400"> - </span>
                           <button
                             className="text-blue-300 hover:text-blue-200 underline bg-transparent border-none cursor-pointer p-0 font-semibold inline"
-                            title="View existing subtitle on OpenSubtitles.org"
-                            onClick={e => {
+                            title="View existing subtitle on OpenSubtitles"
+                            onClick={async e => {
                               e.preventDefault();
                               e.stopPropagation();
-                              window.open(
-                                `https://www.opensubtitles.org/subtitles/${subtitleId}`,
-                                '_blank',
-                                'noopener,noreferrer'
-                              );
+                              await openExternal(existingUrl);
                             }}
                           >
                             View Existing
