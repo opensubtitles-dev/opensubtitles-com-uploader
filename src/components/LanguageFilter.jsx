@@ -6,197 +6,92 @@ export const LanguageFilter = ({
   onLanguageToggle,
   getSubtitleLanguage,
   combinedLanguages,
+  // eslint-disable-next-line no-unused-vars
   colors,
-  isDark
+  // eslint-disable-next-line no-unused-vars
+  isDark,
 }) => {
-  // Group subtitles by current language (manual selection or detected)
   const languageStats = useMemo(() => {
     const stats = new Map();
 
     files.forEach(file => {
       if (file.isSubtitle) {
-        // Get current language (manually selected or auto-detected)
         const langCode = getSubtitleLanguage(file);
-        if (!langCode) return; // Skip if no language
+        if (!langCode) return;
 
-        // Get language name from combined languages
         const langInfo = combinedLanguages[langCode.toLowerCase()];
         const langName = langInfo?.name || langInfo?.languageName || langCode.toUpperCase();
 
         if (!stats.has(langCode)) {
-          stats.set(langCode, {
-            code: langCode,
-            name: langName,
-            count: 0,
-            files: []
-          });
+          stats.set(langCode, { code: langCode, name: langName, count: 0, files: [] });
         }
-
         const entry = stats.get(langCode);
         entry.count++;
         entry.files.push(file.fullPath);
       }
     });
 
-    // Sort by count (descending)
-    const sorted = Array.from(stats.values()).sort((a, b) => b.count - a.count);
-
-    // Debug logging
-    console.log('📊 LanguageFilter: Language statistics', {
-      totalLanguages: sorted.length,
-      totalSubtitles: sorted.reduce((sum, lang) => sum + lang.count, 0),
-      languages: sorted.map(lang => ({
-        code: lang.code,
-        name: lang.name,
-        count: lang.count,
-      })),
-    });
-
-    return sorted;
+    return Array.from(stats.values()).sort((a, b) => b.count - a.count);
   }, [files, getSubtitleLanguage, combinedLanguages]);
 
   if (languageStats.length === 0) {
     return null;
   }
 
-  const themeColors = colors || {
-    cardBackground: '#fff',
-    border: '#e2e8f0',
-    text: '#000',
-    textSecondary: '#454545',
-    success: '#9EC068',
+  const selectAll = () => {
+    onLanguageToggle(new Set(languageStats.map(l => l.code)));
+  };
+  const deselectAll = () => {
+    onLanguageToggle(new Set());
   };
 
   return (
-    <div
-      className="rounded-lg p-6 mb-6 mt-6"
-      style={{
-        backgroundColor: themeColors.cardBackground,
-        border: `1px solid ${themeColors.border}`,
-      }}
-    >
-      <div className="flex items-center justify-between mb-3">
-        <h3
-          className="text-lg font-semibold"
-          style={{ color: themeColors.text }}
-        >
-          📝 Filter by Language
-        </h3>
+    <div className="rounded-md p-6 mb-6 mt-6 bg-base-100 border border-base-300">
+      <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <h3 className="text-lg font-semibold text-base-content">Filter by Language</h3>
         <div className="flex gap-2">
-          <button
-            onClick={() => {
-              // Select all languages
-              const allLangs = new Set(languageStats.map(l => l.code));
-              onLanguageToggle(allLangs);
-            }}
-            className="text-sm px-3 py-1 rounded transition-colors"
-            style={{
-              backgroundColor: isDark ? '#374151' : '#f3f4f6',
-              color: themeColors.text,
-            }}
-            onMouseEnter={e => {
-              e.target.style.backgroundColor = isDark ? '#4b5563' : '#e5e7eb';
-            }}
-            onMouseLeave={e => {
-              e.target.style.backgroundColor = isDark ? '#374151' : '#f3f4f6';
-            }}
-          >
+          <button type="button" onClick={selectAll} className="btn btn-xs btn-ghost">
             Select All
           </button>
-          <button
-            onClick={() => {
-              // Deselect all languages
-              onLanguageToggle(new Set());
-            }}
-            className="text-sm px-3 py-1 rounded transition-colors"
-            style={{
-              backgroundColor: isDark ? '#374151' : '#f3f4f6',
-              color: themeColors.text,
-            }}
-            onMouseEnter={e => {
-              e.target.style.backgroundColor = isDark ? '#4b5563' : '#e5e7eb';
-            }}
-            onMouseLeave={e => {
-              e.target.style.backgroundColor = isDark ? '#374151' : '#f3f4f6';
-            }}
-          >
+          <button type="button" onClick={deselectAll} className="btn btn-xs btn-ghost">
             Deselect All
           </button>
         </div>
       </div>
 
-      <div
-        className="text-sm mb-3"
-        style={{ color: themeColors.textSecondary }}
-      >
+      <div className="text-sm text-base-content/70 mb-3">
         Select which languages to upload. Unchecked languages will be skipped.
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
         {languageStats.map(lang => {
           const isSelected = selectedLanguages.has(lang.code);
-
           return (
             <label
               key={lang.code}
-              className="flex items-center gap-2 p-3 rounded cursor-pointer transition-all"
-              style={{
-                backgroundColor: isSelected
-                  ? (isDark ? '#1f2937' : '#f0fdf4')
-                  : (isDark ? '#111827' : '#f9fafb'),
-                border: `2px solid ${isSelected ? themeColors.success : themeColors.border}`,
-                opacity: isSelected ? 1 : 0.6,
-              }}
-              onMouseEnter={e => {
-                if (!isSelected) {
-                  e.currentTarget.style.opacity = '0.8';
-                }
-              }}
-              onMouseLeave={e => {
-                if (!isSelected) {
-                  e.currentTarget.style.opacity = '0.6';
-                }
-              }}
+              className={[
+                'flex items-center gap-2 p-3 rounded-md cursor-pointer transition-all border-2',
+                isSelected
+                  ? 'border-success bg-success/5'
+                  : 'border-base-300 bg-base-200/40 opacity-70 hover:opacity-100',
+              ].join(' ')}
             >
               <input
                 type="checkbox"
                 checked={isSelected}
                 onChange={() => {
                   const newSelected = new Set(selectedLanguages);
-                  if (isSelected) {
-                    newSelected.delete(lang.code);
-                    console.log(
-                      `🔲 LanguageFilter: Unchecked "${lang.name}" (${lang.code}) - ${lang.count} subtitles will be disabled`
-                    );
-                  } else {
-                    newSelected.add(lang.code);
-                    console.log(
-                      `✅ LanguageFilter: Checked "${lang.name}" (${lang.code}) - ${lang.count} subtitles will be enabled`
-                    );
-                  }
-                  console.log('📝 LanguageFilter: New selection state', {
-                    selectedLanguages: Array.from(newSelected),
-                    totalSelected: newSelected.size,
-                  });
+                  if (isSelected) newSelected.delete(lang.code);
+                  else newSelected.add(lang.code);
                   onLanguageToggle(newSelected);
                 }}
-                className="w-4 h-4"
-                style={{
-                  accentColor: themeColors.success,
-                }}
+                className="checkbox checkbox-sm checkbox-success"
               />
               <div className="flex-1 min-w-0">
-                <div
-                  className="font-medium truncate"
-                  style={{ color: themeColors.text }}
-                  title={lang.name}
-                >
+                <div className="font-medium truncate text-base-content" title={lang.name}>
                   {lang.name}
                 </div>
-                <div
-                  className="text-xs"
-                  style={{ color: themeColors.textSecondary }}
-                >
+                <div className="text-xs text-base-content/60">
                   {lang.count} {lang.count === 1 ? 'subtitle' : 'subtitles'}
                 </div>
               </div>
