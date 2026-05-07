@@ -124,3 +124,53 @@ export const ExternalLink = ({ href, children, className = '', ...props }) => {
     </a>
   );
 };
+
+/**
+ * Canonical base for opensubtitles.com user-facing URLs. The REST API
+ * answers with absolute URLs already (which on staging point at
+ * https://osdev.ngrok.dev/...), so we only need this for cases where
+ * we have a numeric subtitle id and want to construct a "View on
+ * OpenSubtitles" link from scratch.
+ */
+export const OPENSUBTITLES_BASE_URL = 'https://www.opensubtitles.com';
+
+/**
+ * Resolve a "view this subtitle" URL.
+ *
+ * Accepts either:
+ *   - an API response object — uses any URL-bearing field on it
+ *     (download_url / subtitle_url / duplicate_url / url) verbatim,
+ *     so test/staging keeps the ngrok host the API returns;
+ *   - a numeric subtitle id (or anything coercible) — falls back to
+ *     `${OPENSUBTITLES_BASE_URL}/en/subtitles/${id}`.
+ *
+ * Returns null when there is nothing usable. Never returns an
+ * opensubtitles.org URL.
+ */
+export const buildSubtitleViewUrl = input => {
+  if (input == null) return null;
+
+  // 1) API response object — prefer whatever the server returned.
+  if (typeof input === 'object') {
+    const direct =
+      input.download_url ||
+      input.subtitle_url ||
+      input.duplicate_url ||
+      input.url ||
+      input.feature?.url ||
+      null;
+    if (typeof direct === 'string' && direct.length > 0) return direct;
+
+    // 2) Fall back to id-based construction.
+    const id =
+      input.subtitle_id ?? input.duplicate_of ?? input.subtitleId ?? input.id ?? null;
+    if (id != null) return `${OPENSUBTITLES_BASE_URL}/en/subtitles/${id}`;
+
+    return null;
+  }
+
+  // 3) Direct id — string or number.
+  const id = String(input).trim();
+  if (!id) return null;
+  return `${OPENSUBTITLES_BASE_URL}/en/subtitles/${id}`;
+};

@@ -399,8 +399,16 @@ export const UploadButton = ({
   useEffect(() => {
     if (onValidationChange) {
       // Only report if errors have changed (compare by subtitlePath)
-      const currentPaths = errors.filter(e => e.subtitlePath).map(e => e.subtitlePath).sort().join(',');
-      const prevPaths = prevErrorsRef.current.filter(e => e.subtitlePath).map(e => e.subtitlePath).sort().join(',');
+      const currentPaths = errors
+        .filter(e => e.subtitlePath)
+        .map(e => e.subtitlePath)
+        .sort()
+        .join(',');
+      const prevPaths = prevErrorsRef.current
+        .filter(e => e.subtitlePath)
+        .map(e => e.subtitlePath)
+        .sort()
+        .join(',');
 
       if (currentPaths !== prevPaths) {
         onValidationChange(errors);
@@ -817,7 +825,7 @@ export const UploadButton = ({
                               className="text-xs hover:underline mt-1 inline-block"
                               style={{ color: themeColors.link }}
                             >
-                              View on OpenSubtitles.org
+                              View on OpenSubtitles
                             </a>
                           )}
                         </div>
