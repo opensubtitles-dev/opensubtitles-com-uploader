@@ -277,20 +277,14 @@ export const AdBlockerWarning = () => {
 
   // Color scheme based on issue type
   const colorClass = isConnectionProblem
-    ? 'bg-blue-600'
+    ? 'bg-info text-info-content'
     : isBraveShield
-      ? 'bg-orange-600'
-      : 'bg-red-600';
-  const textColorClass = isConnectionProblem
-    ? 'text-blue-100'
-    : isBraveShield
-      ? 'text-orange-100'
-      : 'text-red-100';
-  const buttonColorClass = isConnectionProblem
-    ? 'bg-blue-700 hover:bg-blue-800'
-    : isBraveShield
-      ? 'bg-orange-700 hover:bg-orange-800'
-      : 'bg-red-700 hover:bg-red-800';
+      ? 'bg-warning text-warning-content'
+      : 'bg-error text-error-content';
+  // Translucent muted ink for secondary copy lines on the banner
+  const textColorClass = 'opacity-90';
+  // Subtle darker chip for action buttons on top of the banner
+  const buttonColorClass = 'bg-black/20 hover:bg-black/30';
 
   return (
     <div className={`fixed top-0 left-0 right-0 ${colorClass} text-white px-4 py-3 shadow-lg z-50`}>
