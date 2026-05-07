@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ClipboardList, X } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { APP_VERSION } from '../utils/constants.js';
 // Import embedded changelog
@@ -214,50 +215,35 @@ The embedded changelog could not be loaded.
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: isDark ? 'rgba(0, 0, 0, 0.85)' : 'rgba(0, 0, 0, 0.75)' }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
     >
-      <div
-        className="relative w-full max-w-4xl max-h-[90vh] rounded-lg shadow-2xl overflow-hidden"
-        style={{ backgroundColor: colors.cardBackground }}
-      >
+      <div className="modal-box bg-base-100 w-full max-w-4xl max-h-[90vh] p-0 overflow-hidden flex flex-col">
         {/* Header */}
-        <div
-          className="flex items-center justify-between p-6 border-b"
-          style={{ borderBottomColor: colors.border }}
-        >
+        <div className="flex items-center justify-between p-6 border-b border-base-300">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">📋</span>
+            <ClipboardList className="size-6 text-primary" />
             <div>
-              <h2
-                className="text-xl font-bold"
-                style={{ color: isDark ? '#f5f5f5' : colors.textPrimary }}
-              >
-                Changelog
-              </h2>
-              <p className="text-sm" style={{ color: isDark ? '#d1d1d1' : colors.textSecondary }}>
-                Version {APP_VERSION} - What's new and improved
+              <h2 className="text-xl font-semibold text-base-content">Changelog</h2>
+              <p className="text-sm text-base-content/60">
+                Version {APP_VERSION} — What's new and improved
               </p>
               {lastFetched && (
-                <p className="text-xs" style={{ color: isDark ? '#a3a3a3' : colors.textSecondary }}>
+                <p className="text-xs text-base-content/50">
                   Last updated: {lastFetched.toLocaleString()}
                 </p>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg transition-all duration-200 hover:bg-opacity-80 hover:scale-105"
-              style={{
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : colors.border,
-                color: isDark ? '#f5f5f5' : colors.textPrimary,
-                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.3)' : colors.border}`,
-              }}
-            >
-              ✕
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn btn-sm btn-ghost btn-square"
+            title="Close changelog"
+          >
+            <X className="size-4" />
+          </button>
         </div>
 
         {/* Content */}
