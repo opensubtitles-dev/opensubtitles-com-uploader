@@ -336,26 +336,11 @@ export const OrphanedSubtitles = ({
   // }, [movieGuesses]);
 
   return (
-    <div
-      className="rounded-lg p-4 mb-6 shadow-sm"
-      style={{
-        backgroundColor: themeColors.cardBackground,
-        border: `1px solid ${themeColors.border}`,
-      }}
-    >
+    <div className="rounded-md p-4 mb-6 shadow-sm bg-base-100 border border-base-300">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold flex items-center gap-2" style={{ color: themeColors.text }}>
-          <span>📝</span>
+        <h3 className="font-semibold flex items-center gap-2 text-base-content">
           <span>Orphaned Subtitles ({orphanedSubtitles.length})</span>
-          <span
-            className="text-xs px-2 py-1 rounded"
-            style={{
-              backgroundColor: themeColors.warning + '20',
-              color: themeColors.warning,
-            }}
-          >
-            No matching video file
-          </span>
+          <span className="badge badge-warning badge-sm">No matching video file</span>
         </h3>
 
         {/* Master checkbox for all orphaned subtitles */}
@@ -404,11 +389,7 @@ export const OrphanedSubtitles = ({
           return (
             <div
               key={subtitle.fullPath}
-              className="rounded-lg p-4 shadow-sm"
-              style={{
-                backgroundColor: themeColors.cardBackground,
-                border: `1px solid ${themeColors.border}`,
-              }}
+              className="rounded-md p-4 bg-base-100 border border-base-300"
             >
               <div className="space-y-3">
                 {/* "Video" File Section (showing subtitle file info) */}
