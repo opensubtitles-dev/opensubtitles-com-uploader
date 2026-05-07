@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTheme } from '../contexts/ThemeContext.jsx';
+import { AlertTriangle } from 'lucide-react';
 import { errorCopy } from '../utils/errorCopy.js';
 
 /**
@@ -13,17 +13,15 @@ import { errorCopy } from '../utils/errorCopy.js';
  *   compact? : boolean                small inline variant (no icon, smaller text)
  */
 export function ErrorBanner({ error, onRetry, onLogin, compact = false }) {
-  const { isDark } = useTheme();
   const copy = errorCopy(error);
   if (!copy) return null;
 
-  const baseCls = isDark
-    ? 'bg-red-900/20 border-red-700 text-red-200'
-    : 'bg-red-50 border-red-300 text-red-700';
-
   if (compact) {
     return (
-      <div className={`p-2 rounded border text-sm ${baseCls}`} role="alert">
+      <div
+        role="alert"
+        className="rounded-md border border-error/40 bg-error/10 text-error px-2 py-1.5 text-sm"
+      >
         <span className="font-medium">{copy.title}</span>
         {copy.body && <span className="opacity-80"> — {copy.body}</span>}
       </div>
@@ -31,35 +29,25 @@ export function ErrorBanner({ error, onRetry, onLogin, compact = false }) {
   }
 
   return (
-    <div className={`p-3 rounded border ${baseCls}`} role="alert">
-      <div className="flex items-start gap-3">
-        <span aria-hidden="true">{copy.icon}</span>
-        <div className="flex-1 min-w-0">
-          <div className="font-medium">{copy.title}</div>
-          {copy.body && <div className="text-sm mt-1 opacity-90">{copy.body}</div>}
-          {(onRetry || (copy.showLogin && onLogin)) && (
-            <div className="mt-2 flex gap-3">
-              {onRetry && (
-                <button
-                  onClick={onRetry}
-                  type="button"
-                  className="text-sm underline opacity-90 hover:opacity-100"
-                >
-                  Try again
-                </button>
-              )}
-              {copy.showLogin && onLogin && (
-                <button
-                  onClick={onLogin}
-                  type="button"
-                  className="text-sm underline opacity-90 hover:opacity-100"
-                >
-                  Log in
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+    <div role="alert" className="alert alert-error">
+      <AlertTriangle className="size-5 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="font-medium">{copy.title}</div>
+        {copy.body && <div className="text-sm mt-1 opacity-90">{copy.body}</div>}
+        {(onRetry || (copy.showLogin && onLogin)) && (
+          <div className="mt-2 flex gap-2">
+            {onRetry && (
+              <button onClick={onRetry} type="button" className="btn btn-xs btn-ghost">
+                Try again
+              </button>
+            )}
+            {copy.showLogin && onLogin && (
+              <button onClick={onLogin} type="button" className="btn btn-xs btn-ghost">
+                Log in
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
