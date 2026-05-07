@@ -1,95 +1,54 @@
 import React, { useEffect } from 'react';
+import { X } from 'lucide-react';
 
-export const SubtitlePreview = ({ subtitle, content, onClose, colors, isDark }) => {
-  // Default to light theme colors if not provided
-  const themeColors = colors || {
-    cardBackground: '#fff',
-    background: '#f4f4f4',
-    border: '#ccc',
-    text: '#000',
-    textSecondary: '#454545',
-    textMuted: '#808080',
-    link: '#2878C0',
-    linkHover: '#185DA0',
-  };
-
-  // Handle ESC key press to close modal
+export const SubtitlePreview = ({
+  subtitle,
+  content,
+  onClose,
+  // eslint-disable-next-line no-unused-vars
+  colors,
+  // eslint-disable-next-line no-unused-vars
+  isDark,
+}) => {
   useEffect(() => {
     const handleKeyDown = event => {
       if (event.key === 'Escape') {
         onClose();
       }
     };
-
-    // Add event listener
     document.addEventListener('keydown', handleKeyDown);
-
-    // Cleanup function to remove event listener
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div
-        className="rounded-lg p-6 max-w-4xl w-full max-h-[80vh] flex flex-col shadow-2xl"
-        style={{ backgroundColor: themeColors.cardBackground }}
-      >
-        {/* Header */}
-        <div
-          className="flex items-center justify-between mb-4 pb-4"
-          style={{ borderBottom: `1px solid ${themeColors.border}` }}
-        >
-          <h3 className="text-lg font-semibold" style={{ color: themeColors.text }}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="modal-box w-full max-w-4xl max-h-[80vh] flex flex-col bg-base-100 p-6">
+        <div className="flex items-center justify-between mb-4 pb-4 border-b border-base-300">
+          <h3 className="text-lg font-semibold text-base-content truncate pr-2">
             Subtitle Preview: {subtitle.name}
           </h3>
           <button
+            type="button"
             onClick={onClose}
-            className="text-2xl font-bold transition-colors"
-            style={{ color: themeColors.textMuted }}
-            onMouseEnter={e => (e.target.style.color = themeColors.textSecondary)}
-            onMouseLeave={e => (e.target.style.color = themeColors.textMuted)}
+            className="btn btn-sm btn-ghost btn-square"
+            title="Close (Esc)"
           >
-            ✕
+            <X className="size-4" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-hidden" style={{ minHeight: '400px' }}>
-          <div
-            className="p-4 rounded text-sm font-mono h-full"
-            style={{
-              backgroundColor: isDark ? '#1e1e1e' : '#f4f4f4',
-              color: themeColors.text,
-              border: `1px solid ${themeColors.border}`,
-              overflowY: 'scroll',
-              scrollbarWidth: 'auto',
-              height: '100%',
-              maxHeight: '500px',
-            }}
-          >
-            <pre className="whitespace-pre-wrap" style={{ margin: 0, color: themeColors.text }}>
-              {content || 'Loading subtitle content...'}
-            </pre>
+        <div className="flex-1 overflow-hidden min-h-[400px]">
+          <div className="p-4 rounded-md text-sm font-mono h-full overflow-y-auto bg-base-200 border border-base-300 text-base-content max-h-[500px]">
+            <pre className="whitespace-pre-wrap m-0">{content || 'Loading subtitle content…'}</pre>
           </div>
         </div>
 
-        {/* Footer */}
         <div className="flex justify-end mt-4">
-          <button
-            onClick={onClose}
-            className="text-white px-4 py-2 rounded transition-colors"
-            style={{
-              backgroundColor: themeColors.link,
-            }}
-            onMouseEnter={e => {
-              e.target.style.backgroundColor = themeColors.linkHover;
-            }}
-            onMouseLeave={e => {
-              e.target.style.backgroundColor = themeColors.link;
-            }}
-          >
+          <button type="button" onClick={onClose} className="btn btn-primary btn-sm">
             Close
           </button>
         </div>
