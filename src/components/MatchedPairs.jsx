@@ -190,26 +190,16 @@ export const MatchedPairs = ({
 
   return (
     <div className="space-y-6">
-      <div
-        className="rounded-lg p-6 shadow-sm"
-        style={{
-          backgroundColor: themeColors.cardBackground,
-          border: `1px solid ${themeColors.border}`,
-        }}
-      >
-        <h2 className="text-2xl font-bold mb-4" style={{ color: themeColors.text }}>
+      <div className="rounded-md p-6 shadow-sm bg-base-100 border border-base-300">
+        <h2 className="text-xl font-semibold mb-4 text-base-content">
           Matched Pairs ({successfulPairs.length} successful matches)
         </h2>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           {successfulPairs.map(pair => (
             <div
               key={pair.id}
-              className="rounded-lg p-4 shadow-sm"
-              style={{
-                backgroundColor: themeColors.cardBackground,
-                border: `1px solid ${themeColors.border}`,
-              }}
+              className="rounded-md p-4 bg-base-100 border border-base-300"
             >
               <div className="space-y-3">
                 {/* Video File */}
