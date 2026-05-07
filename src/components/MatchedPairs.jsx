@@ -595,8 +595,17 @@ export const MatchedPairs = ({
                                   <span>
                                     {(() => {
                                       const detectedLanguage = getSubtitleLanguage(subtitle);
-                                      if (detectedLanguage && combinedLanguages[detectedLanguage]) {
-                                        return `${combinedLanguages[detectedLanguage].flag} ${combinedLanguages[detectedLanguage].displayName} (${combinedLanguages[detectedLanguage].iso639?.toUpperCase()})`;
+                                      const lang = detectedLanguage
+                                        ? combinedLanguages[detectedLanguage]
+                                        : null;
+                                      if (lang) {
+                                        const upper = (
+                                          lang.iso639_3 || detectedLanguage
+                                        )?.toUpperCase();
+                                        return `${lang.flag} ${lang.displayName} (${upper})`;
+                                      }
+                                      if (detectedLanguage) {
+                                        return `🏳️ ${detectedLanguage.toUpperCase()}`;
                                       }
                                       return 'Select upload language...';
                                     })()}
@@ -969,7 +978,8 @@ export const MatchedPairs = ({
                                       ? result.data?.IDSubtitle
                                       : result.data;
                                   const subtitleUrl =
-                                    buildSubtitleViewUrl(result) || buildSubtitleViewUrl(subtitleId);
+                                    buildSubtitleViewUrl(result) ||
+                                    buildSubtitleViewUrl(subtitleId);
                                   return (
                                     <div className="text-sm">
                                       <span className="text-green-400">🎉 Upload completed</span>

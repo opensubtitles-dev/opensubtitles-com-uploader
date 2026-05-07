@@ -1,4 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  MessageSquare,
+  Package,
+  Globe,
+  Film,
+  Ear,
+  Monitor,
+  Bot,
+  Languages,
+} from 'lucide-react';
 import { getBestMovieDetectionName } from '../utils/fileUtils.js';
 import { HD_DETECTION_REGEX } from '../utils/constants.js';
 
@@ -524,7 +534,7 @@ export const SubtitleUploadOptions = ({
         {/* Author Comment - First and multiline */}
         <div className="flex items-start gap-2" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-1 text-xs min-w-[80px] mt-1">
-            <span title="Comment from subtitle author">💬</span>
+            <MessageSquare className="size-3.5 text-base-content/70" aria-label="Comment from subtitle author" />
             <span style={{ color: colors.textSecondary }}>Comment</span>
           </div>
           <div className="flex-1 relative">
@@ -569,7 +579,7 @@ export const SubtitleUploadOptions = ({
         {/* Release Name */}
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-1 text-xs min-w-[80px]">
-            <span title="Movie Release Name">📦</span>
+            <Package className="size-3.5 text-base-content/70" aria-label="Movie Release Name" />
             <span style={{ color: colors.textSecondary }}>Release</span>
           </div>
           <input
@@ -592,7 +602,7 @@ export const SubtitleUploadOptions = ({
         <div className="flex flex-col gap-1 relative" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 text-xs min-w-[80px]">
-              <span title="Subtitle Translator">🌐</span>
+              <Globe className="size-3.5 text-base-content/70" aria-label="Subtitle Translator" />
               <span style={{ color: colors.textSecondary }}>Translator</span>
             </div>
             <input
@@ -631,7 +641,7 @@ export const SubtitleUploadOptions = ({
         {/* Movie AKA (Movie Title in Subtitle Language) */}
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-1 text-xs min-w-[80px]">
-            <span title="Movie title in subtitle language">🎬</span>
+            <Film className="size-3.5 text-base-content/70" aria-label="Movie title in subtitle language" />
             <span style={{ color: colors.textSecondary }}>Movie AKA</span>
           </div>
           <input
@@ -658,9 +668,7 @@ export const SubtitleUploadOptions = ({
               className="w-3 h-3"
               style={{ accentColor: colors.link }}
             />
-            <span className="text-xs" title="Hearing Impaired">
-              🦻
-            </span>
+            <Ear className="size-3.5 text-base-content/70" aria-label="Hearing Impaired" />
             <span className="text-xs" style={{ color: colors.textSecondary }}>
               Hearing Impaired
             </span>
@@ -674,9 +682,7 @@ export const SubtitleUploadOptions = ({
               className="w-3 h-3"
               style={{ accentColor: colors.link }}
             />
-            <span className="text-xs" title="High Definition">
-              📺
-            </span>
+            <Monitor className="size-3.5 text-base-content/70" aria-label="High Definition" />
             <span className="text-xs" style={{ color: colors.textSecondary }}>
               High Definition
             </span>
@@ -697,9 +703,7 @@ export const SubtitleUploadOptions = ({
               className="w-3 h-3"
               style={{ accentColor: colors.link }}
             />
-            <span className="text-xs" title="Automatic Translation">
-              🤖
-            </span>
+            <Bot className="size-3.5 text-base-content/70" aria-label="Automatic Translation" />
             <span className="text-xs" style={{ color: colors.textSecondary }}>
               Auto Translation
             </span>
@@ -713,9 +717,7 @@ export const SubtitleUploadOptions = ({
               className="w-3 h-3"
               style={{ accentColor: colors.link }}
             />
-            <span className="text-xs" title="Foreign Parts Only">
-              🎭
-            </span>
+            <Languages className="size-3.5 text-base-content/70" aria-label="Foreign Parts Only" />
             <span className="text-xs" style={{ color: colors.textSecondary }}>
               Foreign Parts Only
             </span>

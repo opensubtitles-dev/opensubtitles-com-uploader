@@ -728,10 +728,22 @@ export const OrphanedSubtitles = ({
                                   }}
                                 >
                                   <span>
-                                    {getSubtitleLanguage(subtitle) &&
-                                    combinedLanguages[getSubtitleLanguage(subtitle)]
-                                      ? `${combinedLanguages[getSubtitleLanguage(subtitle)].flag} ${combinedLanguages[getSubtitleLanguage(subtitle)].displayName} (${combinedLanguages[getSubtitleLanguage(subtitle)].iso639?.toUpperCase()})`
-                                      : 'Select upload language...'}
+                                    {(() => {
+                                      const detectedLanguage = getSubtitleLanguage(subtitle);
+                                      const lang = detectedLanguage
+                                        ? combinedLanguages[detectedLanguage]
+                                        : null;
+                                      if (lang) {
+                                        const upper = (
+                                          lang.iso639_3 || detectedLanguage
+                                        )?.toUpperCase();
+                                        return `${lang.flag} ${lang.displayName} (${upper})`;
+                                      }
+                                      if (detectedLanguage) {
+                                        return `🏳️ ${detectedLanguage.toUpperCase()}`;
+                                      }
+                                      return 'Select upload language...';
+                                    })()}
                                   </span>
                                   <span className="ml-2">▼</span>
                                 </button>
@@ -1026,7 +1038,8 @@ export const OrphanedSubtitles = ({
                                   }
 
                                   const subtitleUrl =
-                                    buildSubtitleViewUrl(result) || buildSubtitleViewUrl(subtitleId);
+                                    buildSubtitleViewUrl(result) ||
+                                    buildSubtitleViewUrl(subtitleId);
 
                                   return (
                                     <div className="text-sm">
@@ -1057,7 +1070,8 @@ export const OrphanedSubtitles = ({
                                       ? result.data?.IDSubtitle
                                       : result.data;
                                   const subtitleUrl =
-                                    buildSubtitleViewUrl(result) || buildSubtitleViewUrl(subtitleId);
+                                    buildSubtitleViewUrl(result) ||
+                                    buildSubtitleViewUrl(subtitleId);
                                   return (
                                     <div className="text-sm">
                                       <span className="text-green-400">🎉 Upload completed</span>
