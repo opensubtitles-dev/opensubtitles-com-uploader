@@ -22,7 +22,7 @@ if (typeof window !== 'undefined') {
   console.log('🌐 Protocol:', window.location.protocol);
   console.log('🖥️ Platform:', navigator.platform);
   console.log('📱 User Agent:', navigator.userAgent);
-  console.log(`🏗️ App Version: OpenSubtitles Uploader PRO v${APP_VERSION}`);
+  console.log(`🏗️ App Version: OpenSubtitles Uploader v${APP_VERSION}`);
 
   // Detect operating system
   const isMac = /Mac|iPhone|iPod|iPad/.test(navigator.platform);
@@ -121,7 +121,8 @@ function SubtitleUploaderInner() {
   const { colors, isDark, toggleTheme } = useTheme();
   const styles = getThemeStyles(colors);
   const { isAuthenticated, user, isAnonymous } = useAuth();
-  const { isStandalone, startAutoUpdates, checkForUpdates, isChecking, updateAvailable } = useAppUpdate();
+  const { isStandalone, startAutoUpdates, checkForUpdates, isChecking, updateAvailable } =
+    useAppUpdate();
   const [error, setError] = useState(null);
   const [notification, setNotification] = useState(null); // For temporary info messages
   const [showChangelogOverlay, setShowChangelogOverlay] = useState(false);
@@ -780,9 +781,7 @@ function SubtitleUploaderInner() {
   const handleLanguageToggle = useCallback(
     newSelectedLanguages => {
       setSelectedLanguages(newSelectedLanguages);
-      addDebugInfo(
-        `Language filter updated: ${newSelectedLanguages.size} language(s) selected`
-      );
+      addDebugInfo(`Language filter updated: ${newSelectedLanguages.size} language(s) selected`);
     },
     [addDebugInfo]
   );
@@ -1364,9 +1363,7 @@ function SubtitleUploaderInner() {
             }
 
             const extractedFiles = await ZipProcessingService.processArchiveFile(file);
-            addDebugInfo(
-              `✅ Extracted ${extractedFiles.length} files from ${file.name}`
-            );
+            addDebugInfo(`✅ Extracted ${extractedFiles.length} files from ${file.name}`);
             processedFiles.push(...extractedFiles);
             continue;
           } catch (error) {
@@ -1424,7 +1421,9 @@ function SubtitleUploaderInner() {
         }
       }
 
-      addDebugInfo(`📁 Processed ${processedFiles.length} valid media files from directory selection`);
+      addDebugInfo(
+        `📁 Processed ${processedFiles.length} valid media files from directory selection`
+      );
 
       if (processedFiles.length > 0) {
         setFiles(prevFiles => {
@@ -1435,9 +1434,7 @@ function SubtitleUploaderInner() {
           const duplicateCount = processedFiles.length - newFiles.length;
 
           if (duplicateCount > 0) {
-            addDebugInfo(
-              `ℹ️ Skipped ${duplicateCount} duplicate file(s) already in the list`
-            );
+            addDebugInfo(`ℹ️ Skipped ${duplicateCount} duplicate file(s) already in the list`);
           }
 
           if (newFiles.length === 0) {
@@ -2335,9 +2332,7 @@ function SubtitleUploaderInner() {
       // Add only genuinely new languages (user changed a subtitle to a new language)
       newLanguages.forEach(lang => newSelectedLanguages.add(lang));
       hasChanges = true;
-      console.log(
-        `➕ Auto-added new language(s): ${Array.from(newLanguages).join(', ')}`
-      );
+      console.log(`➕ Auto-added new language(s): ${Array.from(newLanguages).join(', ')}`);
       addDebugInfo(`Auto-added new language(s): ${Array.from(newLanguages).join(', ')}`);
     } else {
       console.log('⏭️ No changes needed - respecting user selection');
@@ -2345,9 +2340,7 @@ function SubtitleUploaderInner() {
 
     // Update selection if there are changes
     if (hasChanges) {
-      console.log(
-        `💾 Updating selection to: ${Array.from(newSelectedLanguages).join(', ')}`
-      );
+      console.log(`💾 Updating selection to: ${Array.from(newSelectedLanguages).join(', ')}`);
       setSelectedLanguages(newSelectedLanguages);
     }
 
@@ -2430,17 +2423,16 @@ function SubtitleUploaderInner() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <a
-                href="https://www.opensubtitles.org"
+                href="https://www.opensubtitles.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block hover:opacity-80 transition-opacity"
               >
                 <img
                   src={isDark ? logoDark : logoWhite}
-                  alt="OpenSubtitles Logo"
+                  alt="OpenSubtitles"
                   className="h-16 w-auto"
                   onError={e => {
-                    // Fallback to emoji if image fails to load
                     e.target.style.display = 'none';
                     e.target.nextElementSibling.style.display = 'block';
                   }}
@@ -2452,7 +2444,7 @@ function SubtitleUploaderInner() {
               <div>
                 <div className="flex items-center gap-3 mb-1">
                   <h1 className="text-3xl font-bold" style={styles.text}>
-                    OpenSubtitles Uploader <span style={styles.link}>PRO</span>
+                    OpenSubtitles Uploader
                   </h1>
                   <span
                     className="px-2 py-1 text-xs font-semibold rounded-full cursor-pointer hover:opacity-80 transition-opacity"
@@ -2468,16 +2460,16 @@ function SubtitleUploaderInner() {
                   </span>
                 </div>
                 <p style={styles.textSecondary}>
-                  Professional subtitle contribution tool for{' '}
+                  Subtitle uploader for{' '}
                   <a
-                    href="https://www.opensubtitles.org"
+                    href="https://www.opensubtitles.com"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="hover:underline transition-all"
                     style={styles.link}
                     {...createHoverHandlers(colors, styles.link, styles.linkHover)}
                   >
-                    OpenSubtitles.org
+                    OpenSubtitles
                   </a>
                 </p>
               </div>
@@ -2909,10 +2901,7 @@ function SubtitleUploaderInner() {
         />
 
         {/* Login Dialog for "Login to Upload" button */}
-        <LoginDialog
-          isOpen={showLoginDialog}
-          onClose={() => setShowLoginDialog(false)}
-        />
+        <LoginDialog isOpen={showLoginDialog} onClose={() => setShowLoginDialog(false)} />
 
         {/* Progress Overlay */}
         <ProgressOverlay
@@ -2960,42 +2949,6 @@ function SubtitleUploaderInner() {
         >
           <div className="flex flex-col items-center gap-2">
             <div className="flex items-center gap-4">
-              <a
-                href="/#/adblock"
-                className="hover:underline transition-all flex items-center gap-1"
-                style={styles.link}
-                {...createHoverHandlers(colors, styles.link, styles.linkHover)}
-              >
-                <span>🛡️</span>
-                Test Connectivity
-              </a>
-              <span className="text-xs opacity-60">•</span>
-              <a
-                href="https://github.com/opensubtitles/opensubtitles-uploader-pro"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:underline transition-all flex items-center gap-1"
-                style={styles.link}
-                {...createHoverHandlers(colors, styles.link, styles.linkHover)}
-              >
-                <span>📦</span>
-                GitHub Repository
-              </a>
-              <span className="text-xs opacity-60">•</span>
-              <a
-                href="https://www.opensubtitles.org/upload"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:underline transition-all flex items-center gap-1"
-                style={styles.link}
-                {...createHoverHandlers(colors, styles.link, styles.linkHover)}
-                title="Use the original OpenSubtitles uploader"
-              >
-                <span>🔄</span>
-                Legacy Uploader
-              </a>
-              <span className="text-xs opacity-60">•</span>
-              {/* Check for Updates Button - Only in standalone app */}
               {isStandalone && (
                 <button
                   onClick={() => checkForUpdates(true)}

@@ -41,7 +41,7 @@ export const HelpOverlay = ({ isOpen, onClose, colors, isDark }) => {
                 Help & Features
               </h2>
               <p className="text-sm" style={{ color: colors.textSecondary }}>
-                OpenSubtitles Uploader PRO v{APP_VERSION}
+                OpenSubtitles Uploader v{APP_VERSION}
               </p>
             </div>
           </div>
