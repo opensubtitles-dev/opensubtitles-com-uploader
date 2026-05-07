@@ -303,7 +303,7 @@ export const ApiHealthCheck = ({ onApiBlocked }) => {
           icon: '🔑',
           title: 'API Key Missing',
           message: 'OpenSubtitles API key is not configured. Please check your .env file.',
-          color: 'bg-red-600',
+          color: 'bg-error text-error-content',
           isFullWidth: false,
         };
       case 'invalid-key':
@@ -311,7 +311,7 @@ export const ApiHealthCheck = ({ onApiBlocked }) => {
           icon: '🚫',
           title: 'Invalid API Key',
           message: 'The OpenSubtitles API key is invalid. Please check your configuration.',
-          color: 'bg-red-600',
+          color: 'bg-error text-error-content',
           isFullWidth: false,
         };
       case 'blocked':
@@ -322,7 +322,10 @@ export const ApiHealthCheck = ({ onApiBlocked }) => {
             browserInfo?.browser === 'Brave'
               ? 'IMPORTANT: Brave Shield is blocking OpenSubtitles API requests. The uploader will not work until you disable it for this site.'
               : 'Ad blockers like uBlock Origin, Adblock Plus are blocking necessary API requests.',
-          color: browserInfo?.browser === 'Brave' ? 'bg-orange-600' : 'bg-red-600',
+          color:
+            browserInfo?.browser === 'Brave'
+              ? 'bg-warning text-warning-content'
+              : 'bg-error text-error-content',
           isFullWidth: true,
         };
       case 'timeout':
@@ -331,7 +334,7 @@ export const ApiHealthCheck = ({ onApiBlocked }) => {
           title: 'Connection Timeout',
           message:
             'API requests are timing out. This is usually caused by ad blockers or network issues.',
-          color: 'bg-orange-600',
+          color: 'bg-warning text-warning-content',
           isFullWidth: true,
         };
       case 'network-error':
@@ -341,7 +344,7 @@ export const ApiHealthCheck = ({ onApiBlocked }) => {
           message: isTauriDetected
             ? 'Unable to connect to OpenSubtitles API. Please check your internet connection or try again later.'
             : 'Unable to connect to OpenSubtitles API. This is usually caused by ad blockers (uBlock Origin, Adblock Plus, etc.). Please disable them for this site.',
-          color: 'bg-red-600',
+          color: 'bg-error text-error-content',
           isFullWidth: true,
         };
       default:
@@ -349,7 +352,7 @@ export const ApiHealthCheck = ({ onApiBlocked }) => {
           icon: '❌',
           title: 'API Error',
           message: 'There was an error connecting to the OpenSubtitles API.',
-          color: 'bg-red-600',
+          color: 'bg-error text-error-content',
           isFullWidth: false,
         };
     }
