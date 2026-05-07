@@ -153,13 +153,7 @@ const UpdateNotification = () => {
   };
 
   return (
-    <div
-      className={`fixed top-4 right-4 z-50 max-w-md rounded-lg shadow-lg border ${
-        isDark
-          ? 'bg-gray-900/95 border-gray-700 text-white shadow-xl'
-          : 'bg-blue-50 border-blue-200 text-blue-900'
-      }`}
-    >
+    <div className="fixed top-4 right-4 z-50 max-w-md rounded-md shadow-lg border border-info/40 bg-base-100 text-base-content">
       <div className="p-4">
         <div className="flex items-start justify-between">
           <div className="flex">
