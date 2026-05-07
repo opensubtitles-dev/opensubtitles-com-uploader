@@ -1,4 +1,5 @@
 import React from 'react';
+import { Ban, Search } from 'lucide-react';
 import { areTitlesSimilar, formatImdbId, getImdbUrl } from '../utils/fileUtils.js';
 import { MetadataTags } from './MetadataTags.jsx';
 
@@ -400,40 +401,19 @@ export const MovieDisplay = ({
 
     if (movieData === 'no-match') {
       return (
-        <div className="space-y-2" id={`movie-${videoPath.replace(/[^a-zA-Z0-9]/g, '-')}`}>
-          <div
-            className="rounded-lg p-3"
-            style={{
-              backgroundColor: isDark ? '#3d1a1a' : '#fef2f2',
-              border: `1px solid ${themeColors.error}`,
-            }}
-          >
-            <span className="flex items-center gap-1" style={{ color: themeColors.error }}>
-              <span>🚫</span>
-              <span className="font-semibold">No movie match found</span>
-              <button
-                onClick={() => onOpenMovieSearch(videoPath)}
-                className="ml-2 text-xs px-2 py-1 rounded border transition-colors"
-                style={{
-                  color: themeColors.link,
-                  borderColor: themeColors.link,
-                }}
-                onMouseEnter={e => {
-                  e.target.style.color = themeColors.linkHover;
-                  e.target.style.borderColor = themeColors.linkHover;
-                }}
-                onMouseLeave={e => {
-                  e.target.style.color = themeColors.link;
-                  e.target.style.borderColor = themeColors.link;
-                }}
-                title="Search for movie manually"
-              >
-                🔍 Search Movie
-              </button>
-            </span>
-            <div className="text-xs mt-1" style={{ color: themeColors.error }}>
-              This video needs manual movie identification for upload
-            </div>
+        <div id={`movie-${videoPath.replace(/[^a-zA-Z0-9]/g, '-')}`}>
+          <div className="flex items-center gap-2 text-sm text-error">
+            <Ban className="size-4 shrink-0" />
+            <span className="font-medium">No movie match</span>
+            <button
+              type="button"
+              onClick={() => onOpenMovieSearch(videoPath)}
+              className="btn btn-xs btn-outline btn-primary gap-1"
+              title="Search for movie manually"
+            >
+              <Search className="size-3" />
+              Search
+            </button>
           </div>
         </div>
       );
