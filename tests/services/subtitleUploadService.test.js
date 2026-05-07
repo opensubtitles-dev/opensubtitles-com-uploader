@@ -30,7 +30,11 @@ import { SubtitleHashService } from '../../src/services/subtitleHash.js';
 const noop = () => {};
 
 // Stub video / subtitle / movie data shaped like the real callers
-function makeVideo({ movieHash = '0123456789abcdef', size = 1_500_000_000, name = 'Movie.2010.BluRay.mkv' } = {}) {
+function makeVideo({
+  movieHash = '0123456789abcdef',
+  size = 1_500_000_000,
+  name = 'Movie.2010.BluRay.mkv',
+} = {}) {
   return { fullPath: `/v/${name}`, name, size, movieHash };
 }
 function makeSubtitle({ name = 'Movie.2010.BluRay.eng.srt' } = {}) {
@@ -45,19 +49,23 @@ function makeMovieData({ imdbid = '1375666', kind = 'movie' } = {}) {
 let restoreHashStubs = [];
 beforeEach(() => {
   restoreHashStubs = [
-    mock.method(SubtitleHashService, 'readAndHashSubtitleFile', async (_file, includeContent = false) =>
-      includeContent
-        ? {
-            hash: 'aaaa1111bbbb2222cccc3333dddd4444',
-            size: 12345,
-            content: '1\n00:00:01,000 --> 00:00:02,000\nHello\n',
-            contentGzipBase64: 'BASE64GZIPBLOB==',
-          }
-        : { hash: 'aaaa1111bbbb2222cccc3333dddd4444', size: 12345 }
+    mock.method(
+      SubtitleHashService,
+      'readAndHashSubtitleFile',
+      async (_file, includeContent = false) =>
+        includeContent
+          ? {
+              hash: 'aaaa1111bbbb2222cccc3333dddd4444',
+              size: 12345,
+              content: '1\n00:00:01,000 --> 00:00:02,000\nHello\n',
+              contentGzipBase64: 'BASE64GZIPBLOB==',
+            }
+          : { hash: 'aaaa1111bbbb2222cccc3333dddd4444', size: 12345 }
     ),
     mock.method(SubtitleHashService, 'getLanguageId', () => 'eng'),
     mock.method(SubtitleHashService, 'debugCompressedContent', () => ({
-      contentMatch: true, hashMatch: true,
+      contentMatch: true,
+      hashMatch: true,
       originalHash: 'aaaa1111bbbb2222cccc3333dddd4444',
       decompressedHash: 'aaaa1111bbbb2222cccc3333dddd4444',
     })),

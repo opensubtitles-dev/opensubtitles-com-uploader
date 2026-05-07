@@ -5,10 +5,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  createUploadApi,
-  normalizeGuessResult,
-} from '../../../src/services/api/upload.js';
+import { createUploadApi, normalizeGuessResult } from '../../../src/services/api/upload.js';
 
 function makeFakeClient(handler) {
   const calls = [];
