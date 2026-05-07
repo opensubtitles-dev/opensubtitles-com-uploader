@@ -1,57 +1,46 @@
 import React from 'react';
+import { HelpCircle, X } from 'lucide-react';
 import { APP_VERSION } from '../utils/constants.js';
 
-export const HelpOverlay = ({ isOpen, onClose, colors, isDark }) => {
+export const HelpOverlay = ({
+  isOpen,
+  onClose,
+  // eslint-disable-next-line no-unused-vars
+  colors,
+  // eslint-disable-next-line no-unused-vars
+  isDark,
+}) => {
   if (!isOpen) return null;
-
-  const overlayStyle = {
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    backdropFilter: 'blur(4px)',
-  };
-
-  const modalStyle = {
-    backgroundColor: colors.cardBackground,
-    borderColor: colors.border,
-    color: colors.text,
-    maxHeight: '90vh',
-    width: '90vw',
-    maxWidth: '800px',
-  };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={overlayStyle}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
       onClick={onClose}
     >
       <div
-        className="rounded-lg border shadow-2xl overflow-hidden flex flex-col"
-        style={modalStyle}
+        className="modal-box bg-base-100 w-[90vw] max-w-[800px] max-h-[90vh] p-0 overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div
-          className="flex items-center justify-between p-6 border-b"
-          style={{ borderColor: colors.border }}
-        >
+        <div className="flex items-center justify-between p-6 border-b border-base-300">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">❓</span>
+            <HelpCircle className="size-6 text-primary" />
             <div>
-              <h2 className="text-xl font-bold" style={{ color: colors.text }}>
-                Help & Features
-              </h2>
-              <p className="text-sm" style={{ color: colors.textSecondary }}>
+              <h2 className="text-xl font-semibold text-base-content">Help & Features</h2>
+              <p className="text-sm text-base-content/60">
                 OpenSubtitles Uploader v{APP_VERSION}
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-lg hover:opacity-70 transition-opacity"
-            style={{ color: colors.textSecondary }}
+            className="btn btn-sm btn-ghost btn-square"
             title="Close help"
           >
-            <span className="text-xl">✕</span>
+            <X className="size-4" />
           </button>
         </div>
 
