@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+import { Settings, HelpCircle, Sun, Moon } from 'lucide-react';
 
 // Import logo assets
 import logoWhite from '../assets/os_logo_white_512x512.png';
@@ -2403,7 +2404,7 @@ function SubtitleUploaderInner() {
   }
 
   return (
-    <div className="min-h-screen p-6" style={styles.background}>
+    <div className="min-h-screen bg-base-200 p-6">
       {/* Update Notification */}
       <UpdateNotification />
 
@@ -2416,58 +2417,49 @@ function SubtitleUploaderInner() {
 
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div
-          className="border-b-4 shadow-sm mb-6 p-6"
-          style={{ ...styles.card, borderBottomColor: colors.success }}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+        <div className="card bg-base-100 shadow-sm mb-6">
+          <div className="card-body p-5 flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
               <a
                 href="https://www.opensubtitles.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block hover:opacity-80 transition-opacity"
+                className="block hover:opacity-80 transition-opacity shrink-0"
               >
                 <img
                   src={isDark ? logoDark : logoWhite}
                   alt="OpenSubtitles"
-                  className="h-16 w-auto"
+                  className="h-12 w-auto"
                   onError={e => {
                     e.target.style.display = 'none';
                     e.target.nextElementSibling.style.display = 'block';
                   }}
                 />
-                <div className="text-4xl hidden" style={{ display: 'none' }}>
+                <div className="text-3xl hidden" style={{ display: 'none' }}>
                   🎬
                 </div>
               </a>
-              <div>
-                <div className="flex items-center gap-3 mb-1">
-                  <h1 className="text-3xl font-bold" style={styles.text}>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h1 className="text-2xl font-semibold text-base-content truncate">
                     OpenSubtitles Uploader
                   </h1>
-                  <span
-                    className="px-2 py-1 text-xs font-semibold rounded-full cursor-pointer hover:opacity-80 transition-opacity"
-                    style={{
-                      backgroundColor: colors.success + '20',
-                      color: colors.success,
-                      border: `1px solid ${colors.success}40`,
-                    }}
+                  <button
+                    type="button"
+                    className="badge badge-success badge-sm cursor-pointer"
                     onClick={() => setShowChangelogOverlay(true)}
                     title="Click to view changelog"
                   >
                     v{APP_VERSION}
-                  </span>
+                  </button>
                 </div>
-                <p style={styles.textSecondary}>
+                <p className="text-sm text-base-content/60">
                   Subtitle uploader for{' '}
                   <a
                     href="https://www.opensubtitles.com"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:underline transition-all"
-                    style={styles.link}
-                    {...createHoverHandlers(colors, styles.link, styles.linkHover)}
+                    className="link link-hover link-primary"
                   >
                     OpenSubtitles
                   </a>
@@ -2475,95 +2467,36 @@ function SubtitleUploaderInner() {
               </div>
             </div>
 
-            {/* User Info and Theme Toggle - Right Side */}
-            <div className="flex flex-col items-end gap-1">
-              {/* User Profile */}
+            {/* User Info and Action Buttons - Right Side */}
+            <div className="flex flex-col items-end gap-2 shrink-0">
               <UserProfile />
-
-              {/* Action Buttons Row */}
-              <div className="flex items-center gap-2">
-                {/* Config Button */}
+              <div className="flex items-center gap-1">
                 <button
+                  type="button"
                   onClick={handleConfigToggle}
-                  className="flex items-center gap-2 px-3 py-1 rounded-lg transition-all text-xs"
-                  style={{
-                    backgroundColor: isDark ? colors.background : colors.cardBackground,
-                    color: colors.textSecondary,
-                    border: `1px solid ${colors.border}`,
-                  }}
-                  {...createHoverHandlers(
-                    colors,
-                    {
-                      backgroundColor: isDark ? colors.background : colors.cardBackground,
-                      color: colors.textSecondary,
-                      borderColor: colors.border,
-                    },
-                    {
-                      backgroundColor: colors.background,
-                      color: colors.link,
-                      borderColor: colors.link,
-                    }
-                  )}
+                  className="btn btn-ghost btn-sm gap-2"
                   title="Open configuration"
                 >
-                  <span>⚙️</span>
-                  <span>Config</span>
+                  <Settings className="size-4" />
+                  <span className="hidden sm:inline">Config</span>
                 </button>
-
-                {/* Help Button */}
                 <button
+                  type="button"
                   onClick={handleHelpToggle}
-                  className="flex items-center gap-2 px-3 py-1 rounded-lg transition-all text-xs"
-                  style={{
-                    backgroundColor: isDark ? colors.background : colors.cardBackground,
-                    color: colors.textSecondary,
-                    border: `1px solid ${colors.border}`,
-                  }}
-                  {...createHoverHandlers(
-                    colors,
-                    {
-                      backgroundColor: isDark ? colors.background : colors.cardBackground,
-                      color: colors.textSecondary,
-                      borderColor: colors.border,
-                    },
-                    {
-                      backgroundColor: colors.background,
-                      color: colors.link,
-                      borderColor: colors.link,
-                    }
-                  )}
+                  className="btn btn-ghost btn-sm gap-2"
                   title="Help & Features"
                 >
-                  <span>❓</span>
-                  <span>Help</span>
+                  <HelpCircle className="size-4" />
+                  <span className="hidden sm:inline">Help</span>
                 </button>
-
-                {/* Theme Toggle */}
                 <button
+                  type="button"
                   onClick={toggleTheme}
-                  className="flex items-center gap-2 px-3 py-1 rounded-lg transition-all text-xs"
-                  style={{
-                    backgroundColor: isDark ? colors.background : colors.cardBackground,
-                    color: colors.textSecondary,
-                    border: `1px solid ${colors.border}`,
-                  }}
-                  {...createHoverHandlers(
-                    colors,
-                    {
-                      backgroundColor: isDark ? colors.background : colors.cardBackground,
-                      color: colors.textSecondary,
-                      borderColor: colors.border,
-                    },
-                    {
-                      backgroundColor: colors.background,
-                      color: colors.link,
-                      borderColor: colors.link,
-                    }
-                  )}
+                  className="btn btn-ghost btn-sm gap-2"
                   title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
                 >
-                  <span>{isDark ? '☀️' : '🌙'}</span>
-                  <span>{isDark ? 'Light' : 'Dark'}</span>
+                  {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                  <span className="hidden sm:inline">{isDark ? 'Light' : 'Dark'}</span>
                 </button>
               </div>
             </div>
