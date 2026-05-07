@@ -21,7 +21,7 @@ export const DropZone = ({
   return (
     <div
       className={[
-        'relative rounded-xl border-2 border-dashed p-10 mb-6 text-center transition-colors',
+        'relative rounded-lg border-2 border-dashed p-10 mb-6 text-center transition-colors',
         isDragOver
           ? 'border-primary bg-primary/5'
           : 'border-base-300 bg-base-100 hover:border-primary/60 hover:bg-base-200/40',
