@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
-import { Settings, HelpCircle, Sun, Moon } from 'lucide-react';
+import { Settings, HelpCircle, Sun, Moon, AlertTriangle, Lightbulb } from 'lucide-react';
 
 // Import logo assets
 import logoWhite from '../assets/os_logo_white_512x512.png';
@@ -2520,48 +2520,40 @@ function SubtitleUploaderInner() {
 
         {/* Error Display */}
         {error && (
-          <div
-            className="rounded-lg p-4 mb-6"
-            style={{
-              backgroundColor: colors.cardBackground,
-              border: `1px solid ${colors.border}`,
-            }}
-          >
-            <p style={{ color: colors.error }}>⚠️ {error}</p>
-            {(error.includes('blocked') || error.includes('Brave')) &&
-              navigator.userAgent.includes('Brave') && (
-                <div className="mt-3 p-3 bg-orange-100 border border-orange-300 rounded text-orange-800 text-sm">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <span>🛡️</span>
-                    <strong>Brave Browser Detected - Action Required:</strong>
+          <div role="alert" className="alert alert-error mb-6">
+            <AlertTriangle className="size-5 shrink-0" />
+            <div className="flex-1">
+              <span>{error}</span>
+              {(error.includes('blocked') || error.includes('Brave')) &&
+                navigator.userAgent.includes('Brave') && (
+                  <div className="mt-3 p-3 bg-warning/10 border border-warning/40 rounded-md text-sm text-base-content">
+                    <div className="font-semibold mb-1">Brave Browser detected — action required</div>
+                    <ol className="list-decimal list-inside space-y-0.5">
+                      <li>Click the Shield icon in your address bar</li>
+                      <li>Turn off "Shields" for this site</li>
+                      <li>Refresh the page</li>
+                    </ol>
                   </div>
-                  <div className="space-y-1">
-                    <p>1. Click the Shield icon (🛡️) in your address bar</p>
-                    <p>2. Turn off "Shields" for this site</p>
-                    <p>3. Refresh the page</p>
-                  </div>
-                </div>
-              )}
+                )}
+            </div>
           </div>
         )}
 
         {/* Notification Display */}
         {notification && (
           <div
-            className="rounded-lg p-3 mb-4 transition-all duration-300 ease-in-out"
-            style={{
-              backgroundColor:
-                notification.type === 'info' ? colors.cardBackground : colors.cardBackground,
-              border: `1px solid ${notification.type === 'info' ? colors.success : colors.warning}`,
-              borderLeft: `4px solid ${notification.type === 'info' ? colors.success : colors.warning}`,
-            }}
+            role="status"
+            className={[
+              'alert mb-4 transition-all duration-300 ease-in-out',
+              notification.type === 'info' ? 'alert-info' : 'alert-warning',
+            ].join(' ')}
           >
-            <div className="flex items-center gap-2">
-              <span>{notification.type === 'info' ? '💡' : '⚠️'}</span>
-              <p style={{ color: colors.text, margin: 0, fontSize: '14px' }}>
-                {notification.message}
-              </p>
-            </div>
+            {notification.type === 'info' ? (
+              <Lightbulb className="size-5 shrink-0" />
+            ) : (
+              <AlertTriangle className="size-5 shrink-0" />
+            )}
+            <span>{notification.message}</span>
           </div>
         )}
 
