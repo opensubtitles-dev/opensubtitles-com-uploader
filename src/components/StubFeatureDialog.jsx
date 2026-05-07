@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useTheme } from '../contexts/ThemeContext.jsx';
+import { AlertTriangle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { uploadApi } from '../services/api/upload.js';
 
@@ -14,7 +14,6 @@ import { uploadApi } from '../services/api/upload.js';
  * Requires a logged-in user (server returns 401 for anonymous).
  */
 export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
-  const { isDark } = useTheme();
   const { isAuthenticated } = useAuth();
 
   const [form, setForm] = useState({
@@ -24,15 +23,6 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
-
-  const inputCls = `w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-    isDark
-      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
-      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-  }`;
-  const labelCls = `block text-sm font-medium mb-1 ${
-    isDark ? 'text-gray-300' : 'text-gray-700'
-  }`;
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -46,9 +36,8 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
         year: Number.isFinite(yearInt) ? yearInt : undefined,
         type: form.type,
       });
-      // Wrap into the same shape the rest of the app uses
       const movieGuess = {
-        imdbid: null, // stub features don't have an IMDb id yet
+        imdbid: null,
         title: result.title || form.title.trim(),
         year: result.year || yearInt || null,
         kind: (result.type || form.type).toLowerCase(),
@@ -76,58 +65,46 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       onClick={e => e.target === e.currentTarget && !submitting && onCancel()}
     >
-      <div
-        className={`max-w-md w-full rounded-lg p-6 space-y-3 ${
-          isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-        }`}
-      >
-        <h2 className="text-lg font-semibold">Create new entry</h2>
-        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-          The movie or show isn’t in our database yet. Create a provisional
-          entry — a moderator will review it shortly and you can upload
-          subtitles against it immediately.
+      <div className="modal-box w-full max-w-md bg-base-100 p-6 space-y-3">
+        <h2 className="text-lg font-semibold text-base-content">Create new entry</h2>
+        <p className="text-sm text-base-content/70">
+          The movie or show isn't in our database yet. Create a provisional entry — a moderator
+          will review it shortly and you can upload subtitles against it immediately.
         </p>
 
         {!isAuthenticated && (
-          <div
-            className={`p-3 border rounded text-sm ${
-              isDark
-                ? 'bg-amber-900/20 border-amber-700 text-amber-200'
-                : 'bg-amber-50 border-amber-300 text-amber-800'
-            }`}
-          >
-            ⚠ You need to be logged in to create a new entry.
+          <div role="alert" className="alert alert-warning">
+            <AlertTriangle className="size-5 shrink-0" />
+            <span>You need to be logged in to create a new entry.</span>
           </div>
         )}
 
         {error && (
-          <div
-            className={`p-3 border rounded text-sm ${
-              isDark
-                ? 'bg-red-900/20 border-red-700 text-red-200'
-                : 'bg-red-50 border-red-300 text-red-700'
-            }`}
-          >
-            {error}
+          <div role="alert" className="alert alert-error">
+            <AlertTriangle className="size-5 shrink-0" />
+            <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
-            <label htmlFor="stub_title" className={labelCls}>
-              Title <span className="text-red-500">*</span>
+            <label
+              htmlFor="stub_title"
+              className="block text-sm font-medium text-base-content mb-1"
+            >
+              Title <span className="text-error">*</span>
             </label>
             <input
               id="stub_title"
               type="text"
               required
               autoFocus
-              className={inputCls}
+              className="input input-bordered w-full"
               value={form.title}
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
               placeholder="e.g. My Indie Documentary"
@@ -136,7 +113,10 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="stub_year" className={labelCls}>
+              <label
+                htmlFor="stub_year"
+                className="block text-sm font-medium text-base-content mb-1"
+              >
                 Year
               </label>
               <input
@@ -144,19 +124,22 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
                 type="number"
                 min="1888"
                 max="2100"
-                className={inputCls}
+                className="input input-bordered w-full"
                 value={form.year}
                 onChange={e => setForm(f => ({ ...f, year: e.target.value }))}
                 placeholder={String(new Date().getFullYear())}
               />
             </div>
             <div>
-              <label htmlFor="stub_type" className={labelCls}>
+              <label
+                htmlFor="stub_type"
+                className="block text-sm font-medium text-base-content mb-1"
+              >
                 Type
               </label>
               <select
                 id="stub_type"
-                className={inputCls}
+                className="select select-bordered w-full"
                 value={form.type}
                 onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
               >
@@ -172,16 +155,14 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
               type="button"
               onClick={onCancel}
               disabled={submitting}
-              className={`px-3 py-2 rounded ${
-                isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-              }`}
+              className="btn btn-sm btn-ghost"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting || !isAuthenticated || !form.title.trim()}
-              className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white"
+              className="btn btn-sm btn-primary"
             >
               {submitting ? 'Creating…' : 'Create entry'}
             </button>
