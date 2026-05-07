@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { Upload, CheckCircle2, AlertTriangle, Loader2, XCircle } from 'lucide-react';
 import { UserService } from '../services/userService.js';
 
 export const UploadButton = ({
@@ -439,28 +440,21 @@ export const UploadButton = ({
   };
 
   return (
-    <div
-      className="rounded-lg p-6 mt-6 shadow-sm"
-      style={{
-        backgroundColor: themeColors.cardBackground,
-        border: `1px solid ${themeColors.border}`,
-      }}
-    >
+    <div className="rounded-md p-6 mt-6 shadow-sm bg-base-100 border border-base-300">
       <div className="space-y-4">
         {/* Upload Status Summary */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h3 className="text-xl font-bold mb-2" style={{ color: themeColors.text }}>
-              Ready to Upload
-            </h3>
-            <div className="text-sm space-y-1" style={{ color: themeColors.textSecondary }}>
+            <h3 className="text-xl font-semibold mb-1 text-base-content">Ready to Upload</h3>
+            <div className="text-sm space-y-1 text-base-content/70">
               <div>
-                <span className="font-medium">{readySubtitlesCount}</span> of{' '}
-                <span className="font-medium">{totalSubtitles}</span> selected subtitles ready
+                <span className="font-medium text-base-content">{readySubtitlesCount}</span> of{' '}
+                <span className="font-medium text-base-content">{totalSubtitles}</span> selected
+                subtitles ready
               </div>
               {isValid && (
-                <div className="flex items-center gap-2" style={{ color: themeColors.success }}>
-                  <span>✅</span>
+                <div className="flex items-center gap-1.5 text-success">
+                  <CheckCircle2 className="size-4" />
                   <span>All requirements met!</span>
                 </div>
               )}
@@ -470,104 +464,66 @@ export const UploadButton = ({
           {/* Upload Button */}
           <div className="relative">
             <button
+              type="button"
               onClick={handleUpload}
               disabled={!isValid || isUploading || uploadProgress?.isComplete}
-              className={`px-8 py-4 rounded-lg font-bold text-lg transition-all duration-200 transform text-white relative overflow-hidden ${
-                isValid && !isUploading && !uploadProgress?.isComplete
-                  ? 'hover:scale-105 shadow-lg cursor-pointer'
-                  : 'cursor-not-allowed opacity-75'
-              }`}
-              style={{
-                backgroundColor: uploadProgress?.isComplete
-                  ? themeColors.success
+              className={[
+                'btn gap-2 relative overflow-hidden',
+                uploadProgress?.isComplete
+                  ? 'btn-success'
                   : isValid && !isUploading
-                    ? themeColors.link
-                    : themeColors.textMuted,
-              }}
-              onMouseEnter={e => {
-                if (isValid && !isUploading && !uploadProgress?.isComplete) {
-                  e.target.style.backgroundColor = themeColors.linkHover;
-                }
-              }}
-              onMouseLeave={e => {
-                if (isValid && !isUploading && !uploadProgress?.isComplete) {
-                  e.target.style.backgroundColor = themeColors.link;
-                } else if (uploadProgress?.isComplete) {
-                  e.target.style.backgroundColor = themeColors.success;
-                }
-              }}
+                    ? 'btn-primary'
+                    : 'btn-disabled',
+              ].join(' ')}
             >
               {/* Progress Bar Background */}
               {isUploading && (
                 <div
-                  className="absolute inset-0 transition-all duration-300"
+                  className="absolute inset-0 transition-all duration-300 pointer-events-none"
                   style={{
-                    background: `linear-gradient(to right, ${themeColors.success} ${uploadProgressPercent}%, transparent ${uploadProgressPercent}%)`,
+                    background: `linear-gradient(to right, var(--fallback-su,oklch(var(--su))) ${uploadProgressPercent}%, transparent ${uploadProgressPercent}%)`,
                     opacity: 0.3,
                   }}
                 />
               )}
 
               {/* Button Content */}
-              <div className="relative z-10">
+              <span className="relative z-10 flex items-center gap-2">
                 {isUploading ? (
-                  <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>UPLOADING... {uploadProgressPercent}%</span>
-                    <span
-                      className="px-2 py-1 rounded text-sm"
-                      style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
-                    >
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    <span>UPLOADING… {uploadProgressPercent}%</span>
+                    <span className="badge badge-sm badge-ghost">
                       {uploadProgress.processed}/{uploadProgress.total}
                     </span>
-                  </div>
+                  </>
                 ) : uploadProgress?.isComplete ? (
-                  <div className="flex items-center gap-3">
-                    <span>✅</span>
+                  <>
+                    <CheckCircle2 className="size-4" />
                     <span>UPLOAD COMPLETE</span>
-                    <span
-                      className="px-2 py-1 rounded text-sm"
-                      style={{ backgroundColor: themeColors.success }}
-                    >
-                      Done
-                    </span>
-                  </div>
+                  </>
                 ) : isValid ? (
-                  <div className="flex items-center gap-3">
-                    <span>🚀</span>
+                  <>
+                    <Upload className="size-4" />
                     <span>UPLOAD SUBTITLES</span>
-                    <span
-                      className="px-2 py-1 rounded text-sm"
-                      style={{ backgroundColor: '#185DA0' }}
-                    >
-                      {readySubtitlesCount}
-                    </span>
-                  </div>
+                    <span className="badge badge-sm">{readySubtitlesCount}</span>
+                  </>
                 ) : (
-                  <div className="flex items-center gap-3">
-                    <span>⚠️</span>
+                  <>
+                    <AlertTriangle className="size-4" />
                     <span>REQUIREMENTS NOT MET</span>
-                  </div>
+                  </>
                 )}
-              </div>
+              </span>
             </button>
           </div>
         </div>
 
         {/* Validation Errors */}
         {errors.length > 0 && (
-          <div
-            className="rounded-lg p-4"
-            style={{
-              backgroundColor: isDark ? '#3a3a3a' : '#f8f9fa',
-              border: `1px solid ${themeColors.border}`,
-            }}
-          >
-            <h4
-              className="font-semibold mb-2 flex items-center gap-2"
-              style={{ color: themeColors.text }}
-            >
-              <span>❌</span>
+          <div className="rounded-md p-4 bg-base-200 border border-base-300">
+            <h4 className="font-semibold mb-2 flex items-center gap-2 text-base-content">
+              <XCircle className="size-4 text-error" />
               <span>Upload Requirements Not Met:</span>
             </h4>
             <ul className="space-y-1 text-sm" style={{ color: themeColors.textSecondary }}>
