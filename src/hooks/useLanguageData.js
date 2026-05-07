@@ -177,6 +177,48 @@ export const useLanguageData = addDebugInfo => {
     [languageMap]
   );
 
+  /**
+   * Resolve a raw language code (often from FastText detection — e.g. 2-letter
+   * 'en' / 'fr') to whichever code the upload list actually accepts (e.g.
+   * 3-letter 'eng' / 'fre'). Cross-references via iso639_3 metadata that
+   * combinedLanguages already carries from the FastText supported-languages
+   * source, so detection results pre-fill the upload picker correctly even
+   * when the two endpoints disagree on code shape.
+   */
+  const resolveUploadLanguageCode = useCallback(
+    rawCode => {
+      if (!rawCode) return '';
+      const code = String(rawCode).toLowerCase();
+      const direct = combinedLanguages[code];
+      if (direct?.canUpload) return code;
+
+      // Detected code present but not upload-enabled → look for an
+      // upload-enabled entry that shares its iso639_3 (e.g. 'en' → 'eng').
+      const iso = direct?.iso639_3;
+      if (iso) {
+        const lcIso = iso.toLowerCase();
+        if (combinedLanguages[lcIso]?.canUpload) return lcIso;
+        const match = Object.values(combinedLanguages).find(
+          lang => lang.canUpload && lang.iso639_3?.toLowerCase() === lcIso
+        );
+        if (match?.language_code) return match.language_code;
+      }
+
+      // Last-ditch: any upload-enabled lang whose iso639_3 starts with the
+      // raw 2-letter code, or whose language_code starts with the raw code.
+      const fallback = Object.values(combinedLanguages).find(
+        lang =>
+          lang.canUpload &&
+          (lang.iso639_3?.toLowerCase().startsWith(code) ||
+            lang.language_code?.startsWith(code))
+      );
+      if (fallback?.language_code) return fallback.language_code;
+
+      return code;
+    },
+    [combinedLanguages]
+  );
+
   const getSubtitleLanguage = useCallback(
     subtitle => {
       const selected = subtitleLanguages[subtitle.fullPath];
@@ -187,18 +229,20 @@ export const useLanguageData = addDebugInfo => {
         typeof subtitle.detectedLanguage === 'object' &&
         subtitle.detectedLanguage.language_code
       ) {
-        return subtitle.detectedLanguage.language_code.toLowerCase();
+        return resolveUploadLanguageCode(subtitle.detectedLanguage.language_code);
       }
       return '';
     },
-    [subtitleLanguages]
+    [subtitleLanguages, resolveUploadLanguageCode]
   );
 
   const getLanguageOptionsForSubtitle = useCallback(
     subtitle => {
       const options = [];
 
-      // Detected languages first (if any)
+      // Detected languages first (if any) — resolve through the upload-code
+      // mapper so 2-letter FastText results ('en') surface as the matching
+      // 3-letter upload code ('eng') and the entry is actually pickable.
       if (
         subtitle.detectedLanguage &&
         typeof subtitle.detectedLanguage === 'object' &&
@@ -207,10 +251,15 @@ export const useLanguageData = addDebugInfo => {
         subtitle.detectedLanguage.all_languages
           .sort((a, b) => b.confidence - a.confidence)
           .forEach(lang => {
-            const code = lang.language_code.toLowerCase();
-            const combinedLang = combinedLanguages[code];
+            const resolved = resolveUploadLanguageCode(lang.language_code);
+            const combinedLang = combinedLanguages[resolved];
             if (combinedLang && combinedLang.canUpload) {
-              options.push({ code, ...combinedLang, confidence: lang.confidence, isDetected: true });
+              options.push({
+                code: resolved,
+                ...combinedLang,
+                confidence: lang.confidence,
+                isDetected: true,
+              });
             }
           });
       }
@@ -226,7 +275,7 @@ export const useLanguageData = addDebugInfo => {
 
       return options;
     },
-    [combinedLanguages]
+    [combinedLanguages, resolveUploadLanguageCode]
   );
 
   return {
