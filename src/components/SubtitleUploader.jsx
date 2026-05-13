@@ -2184,6 +2184,22 @@ function SubtitleUploaderInner() {
     setUploadResults({}); // Clear upload results
     setHasDroppedFiles(false); // Reset drop state to allow files to be dropped again
     setSubcontentData({}); // Clear subcontent data
+    // Reset the upload-progress summary. Without this, the previous
+    // session's `isComplete: true` keeps the "Upload Complete" panel +
+    // per-subtitle result rows visible after a Clear All, even though
+    // no files are loaded any more.
+    setUploadProgress({
+      isUploading: false,
+      isComplete: false,
+      processed: 0,
+      total: 0,
+      successful: 0,
+      alreadyExists: 0,
+      failed: 0,
+      currentSubtitle: '',
+      results: [],
+    });
+    setValidationErrors([]); // Clear stale validation highlights
 
     // Clear processing state
     processedFilesSet.current.clear();
