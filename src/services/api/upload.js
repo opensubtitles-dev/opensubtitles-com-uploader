@@ -166,6 +166,54 @@ export function createUploadApi({ client = defaultClient } = {}) {
         { signal: opts.signal }
       );
     },
+
+    /**
+     * POST /subtitles/upload/features/from_id — resolve an IMDb / TMDb id
+     * to canonical metadata so the uploader can render a confirm step
+     * before creating a feature.
+     *
+     * See osdb3 plan: docs/plans/2026-05-07-stub-feature-from-imdb-tmdb.md
+     * and this repo's docs/plans/11-stub-feature-from-imdb-tmdb.md.
+     *
+     * Accepts either or both ids. The server prefers imdb_id when both
+     * are present (resolved §3 — IMDb wins). Anonymous is OK; sends
+     * Bearer when present so admin/VIP-only blacklisted features can
+     * still resolve.
+     *
+     * Returns the server envelope verbatim:
+     *   on found (movie):
+     *     { found: true, source: 'imdb'|'tmdb', imdb_id, tmdb_id,
+     *       title, original_title, year, type: 'movie',
+     *       poster_url, exists_in_db: false, feature_id: null }
+     *   on found (tvshow — uploads must never target series-level, so
+     *     the body always carries the full season/episode graph):
+     *     { found: true, source: 'imdb', imdb_id, title, year,
+     *       type: 'tvshow', exists_in_db, feature_id, poster_url,
+     *       series: { seasons: [{ season_number, episode_count,
+     *         episodes: [{ imdb_id, episode_number, title, year,
+     *         runtime_seconds }] }] } }
+     *   on found (episode normalised to show + preselected coords):
+     *     <tvshow body> + preselected: { season_number, episode_number,
+     *       imdb_id, title }
+     *   on exists_in_db:
+     *     { found: true, exists_in_db: true, feature_id, imdb_id,
+     *       tmdb_id, title, year, type }
+     *   on 404:
+     *     RestError with code 'imdb_id_not_found' | 'tmdb_id_not_found'
+     *   on 422:
+     *     RestError with code 'invalid_imdb_id' | 'invalid_tmdb_id'
+     *       | 'missing_id'
+     */
+    async resolveFromId({ imdbId, tmdbId } = {}, opts = {}) {
+      const body = {};
+      // Treat 0, '', null, undefined as absent — neither is a valid id.
+      if (imdbId != null && imdbId !== '' && imdbId !== 0) body.imdb_id = imdbId;
+      if (tmdbId != null && tmdbId !== '' && tmdbId !== 0) body.tmdb_id = tmdbId;
+      return client.post('/subtitles/upload/features/from_id', body, {
+        signal: opts.signal,
+        authenticated: opts.anonymous === true ? false : 'auto',
+      });
+    },
   };
 }
 
