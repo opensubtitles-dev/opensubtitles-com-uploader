@@ -58,13 +58,19 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
   const { isAuthenticated } = useAuth();
 
   // ── State machine ────────────────────────────────────────────────
-  // Currently always start in resolve — "Switch to manual" is an explicit
-  // link inside the dialog. Future: detect plain free-text title and jump
-  // to manual.
-  const initialStep = useMemo(() => 'resolve', []);
+  // If the caller hands us something that already looks like an id (or
+  // empty input), start in `resolve`. If it's plain free-text (e.g. the
+  // user typed "The Matrix" in MovieSearch and got 0 hits), jump to
+  // `manual` with the title pre-filled — saves them a click.
+  const initialStep = useMemo(() => {
+    if (!initialTitle?.trim()) return 'resolve';
+    return parseImdbId(initialTitle) || parseTmdbId(initialTitle) ? 'resolve' : 'manual';
+  }, [initialTitle]);
 
   const [step, setStep] = useState(initialStep);
-  const [idInput, setIdInput] = useState(initialTitle);
+  const [idInput, setIdInput] = useState(
+    parseImdbId(initialTitle) || parseTmdbId(initialTitle) ? initialTitle : ''
+  );
   const [resolved, setResolved] = useState(null); // /from_id response body
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
