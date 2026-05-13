@@ -24,7 +24,7 @@ import { retryAsync } from '../utils/retryUtils.js';
  * docs/plans/02-endpoint-mapping.md §E4 and 04-rest-client-refactor.md §7.
  */
 export const useLanguageData = addDebugInfo => {
-  const [languageMap, setLanguageMap] = useState({});         // FastText (display)
+  const [languageMap, setLanguageMap] = useState({}); // FastText (display)
   const [uploadLanguages, setUploadLanguages] = useState([]); // upload-enabled
   const [combinedLanguages, setCombinedLanguages] = useState({});
   const [languagesLoading, setLanguagesLoading] = useState(true);
@@ -209,8 +209,7 @@ export const useLanguageData = addDebugInfo => {
       const fallback = Object.values(combinedLanguages).find(
         lang =>
           lang.canUpload &&
-          (lang.iso639_3?.toLowerCase().startsWith(code) ||
-            lang.language_code?.startsWith(code))
+          (lang.iso639_3?.toLowerCase().startsWith(code) || lang.language_code?.startsWith(code))
       );
       if (fallback?.language_code) return fallback.language_code;
 

@@ -779,8 +779,7 @@ export const ConfigOverlay = ({
               {/* Upload as Anonymous Setting - ONLY for OS Legend rank */}
               {userInfo?.UserRanks?.some(
                 r =>
-                  r?.toLowerCase() === 'os legend' ||
-                  r?.toLowerCase() === 'opensubtitles legends'
+                  r?.toLowerCase() === 'os legend' || r?.toLowerCase() === 'opensubtitles legends'
               ) && (
                 <>
                   {/* Minimal separator line */}
@@ -807,7 +806,9 @@ export const ConfigOverlay = ({
                           className="w-11 h-6 rounded-full peer transition-colors duration-200 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"
                           style={{
                             backgroundColor:
-                              localConfig.uploadAsAnonymous === true ? colors.success : colors.border,
+                              localConfig.uploadAsAnonymous === true
+                                ? colors.success
+                                : colors.border,
                           }}
                         />
                       </label>
@@ -819,7 +820,9 @@ export const ConfigOverlay = ({
                       style={{ color: colors.warning || colors.error }}
                     >
                       <span>🔒</span>
-                      <span>Anonymous upload enabled - uploads will not be credited to your account</span>
+                      <span>
+                        Anonymous upload enabled - uploads will not be credited to your account
+                      </span>
                     </div>
                   )}
                 </>

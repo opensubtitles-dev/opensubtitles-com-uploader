@@ -1,14 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  MessageSquare,
-  Package,
-  Globe,
-  Film,
-  Ear,
-  Monitor,
-  Bot,
-  Languages,
-} from 'lucide-react';
+import { MessageSquare, Package, Globe, Film, Ear, Monitor, Bot, Languages } from 'lucide-react';
 import { getBestMovieDetectionName } from '../utils/fileUtils.js';
 import { HD_DETECTION_REGEX } from '../utils/constants.js';
 
@@ -534,7 +525,10 @@ export const SubtitleUploadOptions = ({
         {/* Author Comment - First and multiline */}
         <div className="flex items-start gap-2" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-1 text-xs min-w-[80px] mt-1">
-            <MessageSquare className="size-3.5 text-base-content/70" aria-label="Comment from subtitle author" />
+            <MessageSquare
+              className="size-3.5 text-base-content/70"
+              aria-label="Comment from subtitle author"
+            />
             <span style={{ color: colors.textSecondary }}>Comment</span>
           </div>
           <div className="flex-1 relative">
@@ -641,7 +635,10 @@ export const SubtitleUploadOptions = ({
         {/* Movie AKA (Movie Title in Subtitle Language) */}
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-1 text-xs min-w-[80px]">
-            <Film className="size-3.5 text-base-content/70" aria-label="Movie title in subtitle language" />
+            <Film
+              className="size-3.5 text-base-content/70"
+              aria-label="Movie title in subtitle language"
+            />
             <span style={{ color: colors.textSecondary }}>Movie AKA</span>
           </div>
           <input

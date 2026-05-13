@@ -43,16 +43,20 @@ export const SubtitleFile = ({
       } ${hasValidationError ? 'ring-2 ring-red-500 ring-offset-2' : ''}`}
       style={{
         backgroundColor: hasValidationError
-          ? (isDark ? '#3a1a1a' : '#fef2f2')
-          : (colors?.cardBackground || '#fff'),
+          ? isDark
+            ? '#3a1a1a'
+            : '#fef2f2'
+          : colors?.cardBackground || '#fff',
         borderColor: hasValidationError
           ? '#ef4444'
-          : (uploadEnabled ? colors?.success || '#9EC068' : colors?.border || '#ccc'),
+          : uploadEnabled
+            ? colors?.success || '#9EC068'
+            : colors?.border || '#ccc',
         borderLeft: hasValidationError
           ? '4px solid #ef4444'
-          : (uploadEnabled
+          : uploadEnabled
             ? `4px solid ${colors?.success || '#9EC068'}`
-            : `4px solid ${colors?.border || '#ccc'}`),
+            : `4px solid ${colors?.border || '#ccc'}`,
       }}
       onClick={e => {
         // Prevent toggle when clicking on interactive elements
@@ -263,9 +267,7 @@ export const SubtitleFile = ({
                   // download_url) or legacy shape (data is the URL string).
                   const newUrl =
                     buildSubtitleViewUrl(result) ||
-                    (typeof result.data === 'string'
-                      ? buildSubtitleViewUrl(result.data)
-                      : null);
+                    (typeof result.data === 'string' ? buildSubtitleViewUrl(result.data) : null);
                   return (
                     <div className="text-sm">
                       <span className="text-green-400">🎉 Successfully Uploaded as NEW!</span>

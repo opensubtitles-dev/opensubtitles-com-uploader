@@ -73,8 +73,8 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
       <div className="modal-box w-full max-w-md bg-base-100 p-6 space-y-3">
         <h2 className="text-lg font-semibold text-base-content">Create new entry</h2>
         <p className="text-sm text-base-content/70">
-          The movie or show isn't in our database yet. Create a provisional entry — a moderator
-          will review it shortly and you can upload subtitles against it immediately.
+          The movie or show isn't in our database yet. Create a provisional entry — a moderator will
+          review it shortly and you can upload subtitles against it immediately.
         </p>
 
         {!isAuthenticated && (

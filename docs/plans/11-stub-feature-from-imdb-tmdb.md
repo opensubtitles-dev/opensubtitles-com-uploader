@@ -270,20 +270,28 @@ Helper `parseImdbId(input) → 'tt11114492' | null` already exists in
    `{imdb_id, confirm: true}`? Probably yes, but two endpoints make
    the "back" navigation in the dialog cheap and let us cache the
    lookup independently of commits. Recommended: keep two.
+yes ok
 2. **Episode handling** — IMDb episode pages exist (e.g. `tt0959621`
    = LOST S01E01). Should `/from-id` resolve episodes too, or only
    accept show-level ids? Recommend accepting episode ids; the server
    creates / links the parent show feature *and* the episode child.
    This unlocks orphaned single-episode subtitle uploads where the
    user can find the IMDb episode page but the show isn't in our DB.
+
+we have to make sure uploads never happen on the tv serie itself. if user sends a episode or tvshow imdbid, we need to build the whole serie, all seasons and episodes, and the user must pick the appropriate season and episode. so if the from id is the episode we can return the show and episode pre-selected. if it's the tv serie, we return the show and a select for season and episode. note we have already all the imdb show structures in the duckdb, so we can do some quering without API
+
 3. **TMDb vs IMDb precedence** — when both ids are sent, which wins?
    IMDb is the source of truth for our existing data; recommend prefer
    imdb_id, fall back to tmdb_id only if imdb_id is missing.
+  
+   yes imdb always prefered source of truth
+   
 4. **Spam / abuse** — the create-from-id flow makes provisional-entry
    creation easier, which could be abused. Mitigations: rate-limit
    per-user (5/hour anonymous, 50/hour logged-in), reject ids that are
    already in spam-IDs deny-list, queue all provisional features to
    the `feature_review` Sidekiq queue for async moderator alert.
+hopefully creating valid imdb records shouldn't be too much of a probem, we can have a secondary mechanism that cleans up records if nothing gets uploaded to them
 
 ## 7. Phasing
 

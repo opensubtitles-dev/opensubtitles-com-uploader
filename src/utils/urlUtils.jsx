@@ -162,8 +162,7 @@ export const buildSubtitleViewUrl = input => {
     if (typeof direct === 'string' && direct.length > 0) return direct;
 
     // 2) Fall back to id-based construction.
-    const id =
-      input.subtitle_id ?? input.duplicate_of ?? input.subtitleId ?? input.id ?? null;
+    const id = input.subtitle_id ?? input.duplicate_of ?? input.subtitleId ?? input.id ?? null;
     if (id != null) return `${OPENSUBTITLES_BASE_URL}/en/subtitles/${id}`;
 
     return null;

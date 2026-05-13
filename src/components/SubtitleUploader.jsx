@@ -2527,7 +2527,9 @@ function SubtitleUploaderInner() {
               {(error.includes('blocked') || error.includes('Brave')) &&
                 navigator.userAgent.includes('Brave') && (
                   <div className="mt-3 p-3 bg-warning/10 border border-warning/40 rounded-md text-sm text-base-content">
-                    <div className="font-semibold mb-1">Brave Browser detected — action required</div>
+                    <div className="font-semibold mb-1">
+                      Brave Browser detected — action required
+                    </div>
                     <ol className="list-decimal list-inside space-y-0.5">
                       <li>Click the Shield icon in your address bar</li>
                       <li>Turn off "Shields" for this site</li>
