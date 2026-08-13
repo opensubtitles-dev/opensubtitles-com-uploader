@@ -533,70 +533,128 @@ export const MovieDisplay = ({
                           : (finalMovieData.kind || 'movie').replace('_', ' ')
                       }
                     >
-                      {featuresData?.data?.[0]?.attributes?.feature_type === 'tv_series' ||
-                      featuresData?.data?.[0]?.attributes?.feature_type === 'episode' ||
-                      finalMovieData.kind === 'tv series' ||
-                      finalMovieData.kind === 'episode'
-                        ? '📺'
-                        : '🎬'}
+                      {(() => {
+                        // `feature_type` from /features is the Rails STI class name
+                        // ('Tvshow'/'Episode'/'Movie'). `kind` is the lowercased
+                        // form (`'tvshow'`/`'episode'`/`'movie'`). Legacy code used
+                        // `'tv series'` / `'tv_series'`; check all variants.
+                        const ft = featuresData?.data?.[0]?.attributes?.feature_type?.toLowerCase();
+                        const k = finalMovieData.kind;
+                        const isTvShape =
+                          ft === 'tvshow' ||
+                          ft === 'tv_series' ||
+                          ft === 'episode' ||
+                          k === 'tvshow' ||
+                          k === 'tv series' ||
+                          k === 'episode';
+                        return isTvShape ? '📺' : '🎬';
+                      })()}
                     </span>
                   )}
 
-                  {/* Main Title - shows episode-specific title with parent_title + original_title when available */}
-                  <span>
+                  {/* Main Title — TV shows render as two lines:
+                        line 1: <Show title> (year)  [tt-imdb-link to parent show]
+                        line 2: SxxExx – <Episode title>  [tt-imdb-link to episode]
+                      Movies / unknown kind: single "Title (year)" line. */}
+                  <span className="inline-flex flex-col leading-tight">
                     {(() => {
-                      // DISABLED: console.log to prevent setState during render
-                      // console.log('Title formatting debug:', {
-                      //   'hasEpisodeFeaturesData': !!episodeFeaturesData?.data?.[0]?.attributes,
-                      //   'episodeFeaturesData': episodeFeaturesData,
-                      //   'finalMovieData.kind': finalMovieData.kind,
-                      //   'finalMovieData.season': finalMovieData.season,
-                      //   'finalMovieData.episode': finalMovieData.episode,
-                      //   'finalMovieData': finalMovieData
-                      // });
+                      const pad = n => (n || 0).toString().padStart(2, '0');
 
-                      // If we have episode-specific features data, use parent_title + season/episode + episode title
-                      if (episodeFeaturesData?.data?.[0]?.attributes) {
-                        const episodeAttrs = episodeFeaturesData.data[0].attributes;
-                        const parentTitle = episodeAttrs.parent_title || 'Unknown Series';
-                        const seasonEpisode = `S${(episodeAttrs.season_number || 0).toString().padStart(2, '0')}E${(episodeAttrs.episode_number || 0).toString().padStart(2, '0')}`;
+                      const epAttrs = episodeFeaturesData?.data?.[0]?.attributes;
 
-                        // Use episode title (original_title if available, otherwise title, otherwise fallback)
-                        let episodeTitle =
-                          episodeAttrs.title || `Episode ${episodeAttrs.episode_number || '?'}`;
-                        if (
-                          episodeAttrs.original_title &&
-                          episodeAttrs.original_title !== 'null' &&
-                          episodeAttrs.original_title.trim() !== ''
-                        ) {
-                          episodeTitle = episodeAttrs.original_title;
-                        }
+                      const showTitle = epAttrs?.parent_title || finalMovieData.show_title || null;
+                      const parentImdb =
+                        epAttrs?.parent_imdb_id || finalMovieData.parent_imdb_id || null;
+                      const seasonNum =
+                        epAttrs?.season_number ??
+                        finalMovieData.season_number ??
+                        finalMovieData.season ??
+                        null;
+                      const episodeNum =
+                        epAttrs?.episode_number ??
+                        finalMovieData.episode_number ??
+                        finalMovieData.episode ??
+                        null;
+                      const yearVal = epAttrs?.year || finalMovieData.year || null;
+                      const cleanedOriginal =
+                        epAttrs?.original_title &&
+                        epAttrs.original_title !== 'null' &&
+                        epAttrs.original_title.trim() !== ''
+                          ? epAttrs.original_title
+                          : null;
+                      const episodeTitle =
+                        cleanedOriginal ||
+                        epAttrs?.title ||
+                        finalMovieData.episode_title ||
+                        (finalMovieData.kind === 'episode' ? finalMovieData.title : null) ||
+                        `Episode ${episodeNum || '?'}`;
+                      const episodeImdb = finalMovieData.imdbid || epAttrs?.imdb_id || null;
 
-                        return `${parentTitle} - ${seasonEpisode} - ${episodeTitle}`;
+                      const isEpisodeShape =
+                        (finalMovieData.kind === 'episode' ||
+                          epAttrs?.feature_type === 'Episode') &&
+                        seasonNum != null &&
+                        episodeNum != null;
+
+                      const linkCls = 'underline font-mono text-xs ml-2';
+
+                      if (isEpisodeShape) {
+                        return (
+                          <>
+                            <span>
+                              {showTitle ? (
+                                <span className="font-semibold">{showTitle}</span>
+                              ) : (
+                                <span className="italic" style={{ color: themeColors.textMuted }}>
+                                  Loading show…
+                                </span>
+                              )}
+                              {yearVal ? (
+                                <span style={{ color: themeColors.textSecondary }}>
+                                  {' '}
+                                  ({yearVal})
+                                </span>
+                              ) : null}
+                              {parentImdb ? (
+                                <a
+                                  href={getImdbUrl(parentImdb)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={linkCls}
+                                  style={{ color: themeColors.link }}
+                                  title="Open TV series on IMDb"
+                                >
+                                  {formatImdbId(parentImdb)}
+                                </a>
+                              ) : null}
+                            </span>
+                            <span className="text-sm" style={{ color: themeColors.textSecondary }}>
+                              S{pad(seasonNum)}E{pad(episodeNum)} – {episodeTitle}
+                              {episodeImdb ? (
+                                <a
+                                  href={getImdbUrl(episodeImdb)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={linkCls}
+                                  style={{ color: themeColors.link }}
+                                  title="Open episode on IMDb"
+                                >
+                                  {formatImdbId(episodeImdb)}
+                                </a>
+                              ) : null}
+                            </span>
+                          </>
+                        );
                       }
 
-                      // If this is an episode with season/episode info from finalMovieData, format it properly
-                      if (
-                        finalMovieData.kind === 'episode' &&
-                        finalMovieData.season &&
-                        finalMovieData.episode
-                      ) {
-                        const seasonEpisode = `S${finalMovieData.season.toString().padStart(2, '0')}E${finalMovieData.episode.toString().padStart(2, '0')}`;
-                        const showTitle = finalMovieData.show_title || finalMovieData.title;
-                        const episodeTitle =
-                          finalMovieData.episode_title || `Episode ${finalMovieData.episode}`;
-                        // DISABLED: console.log to prevent setState during render
-                        // console.log('Using finalMovieData:', { seasonEpisode, showTitle, episodeTitle });
-                        return `${showTitle} - ${seasonEpisode} - ${episodeTitle}`;
-                      }
-
-                      // Otherwise use the finalMovieData title as-is
-                      const mainTitle = finalMovieData.title;
-                      // DISABLED: console.log to prevent setState during render
-                      // console.log('Using basic title:', mainTitle);
-                      return mainTitle;
+                      // Movie / unknown kind — single line
+                      return (
+                        <span>
+                          {finalMovieData.title}
+                          {finalMovieData.year ? ` (${finalMovieData.year})` : ''}
+                        </span>
+                      );
                     })()}
-                    {finalMovieData.year && ` (${finalMovieData.year})`}
                   </span>
 
                   {/* Change Movie Button */}
@@ -898,8 +956,16 @@ export const MovieDisplay = ({
                                   return featureType.replace('_', ' ');
                               }
                             }
-                            // Fallback to bestMovieData kind
-                            return bestMovieData.kind === 'tv series' ? 'TV Series' : 'Movie';
+                            // Fallback to bestMovieData kind. `kind` is lowercased
+                            // by `normalizeFeatureForUi` — Tvshow row → 'tvshow'.
+                            // Accept legacy 'tv series' string too.
+                            if (bestMovieData.kind === 'episode') return 'Episode';
+                            if (
+                              bestMovieData.kind === 'tvshow' ||
+                              bestMovieData.kind === 'tv series'
+                            )
+                              return 'TV Series';
+                            return 'Movie';
                           })()}
                           )
                         </span>
@@ -1015,7 +1081,14 @@ export const MovieDisplay = ({
                           {formatImdbId(originalMovieData.imdbid)}
                         </a>
                         <span className="text-xs ml-2" style={{ color: '#28a745' }}>
-                          ({bestMovieData.kind === 'tv series' ? 'TV Series' : 'Movie'})
+                          (
+                          {(() => {
+                            const k = bestMovieData.kind;
+                            if (k === 'episode') return 'Episode';
+                            if (k === 'tvshow' || k === 'tv series') return 'TV Series';
+                            return 'Movie';
+                          })()}
+                          )
                         </span>
                       </div>
 

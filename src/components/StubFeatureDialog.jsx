@@ -54,24 +54,34 @@ function parseTmdbId(input) {
  * a guess-shaped hash so the rest of the upload flow can attach a subtitle
  * to the new feature_id without further plumbing.
  */
-export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
+export function StubFeatureDialog({
+  initialTitle = '',
+  initialResolved = null,
+  manualTitleSuggestion = '',
+  preferIdLookup = false,
+  onCreated,
+  onCancel,
+}) {
   const { isAuthenticated } = useAuth();
 
   // ── State machine ────────────────────────────────────────────────
-  // If the caller hands us something that already looks like an id (or
-  // empty input), start in `resolve`. If it's plain free-text (e.g. the
-  // user typed "The Matrix" in MovieSearch and got 0 hits), jump to
-  // `manual` with the title pre-filled — saves them a click.
+  // If `initialResolved` was supplied (caller already ran /from_id and
+  // wants the user to confirm an episode pick), jump straight to
+  // `confirming` with that envelope. Otherwise the usual rules apply:
+  // looks-like-an-id → `resolve`, free-text → `manual` unless the caller
+  // explicitly wants to prioritize IMDb/TMDb lookup first.
   const initialStep = useMemo(() => {
+    if (initialResolved) return 'confirming';
+    if (preferIdLookup) return 'resolve';
     if (!initialTitle?.trim()) return 'resolve';
     return parseImdbId(initialTitle) || parseTmdbId(initialTitle) ? 'resolve' : 'manual';
-  }, [initialTitle]);
+  }, [initialTitle, initialResolved, preferIdLookup]);
 
   const [step, setStep] = useState(initialStep);
   const [idInput, setIdInput] = useState(
     parseImdbId(initialTitle) || parseTmdbId(initialTitle) ? initialTitle : ''
   );
-  const [resolved, setResolved] = useState(null); // /from_id response body
+  const [resolved, setResolved] = useState(initialResolved); // /from_id response body
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -80,7 +90,13 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
   const [selectedEpisode, setSelectedEpisode] = useState(null);
 
   // Manual-mode form
-  const [manualForm, setManualForm] = useState({ title: initialTitle, year: '', type: 'movie' });
+  const [manualForm, setManualForm] = useState({
+    title:
+      manualTitleSuggestion ||
+      (parseImdbId(initialTitle) || parseTmdbId(initialTitle) ? '' : initialTitle),
+    year: '',
+    type: 'movie',
+  });
 
   // When resolved data arrives, hydrate season/episode picker defaults.
   useEffect(() => {
@@ -104,7 +120,9 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
     const imdbId = parseImdbId(idInput);
     const tmdbId = imdbId ? null : parseTmdbId(idInput);
     if (!imdbId && !tmdbId) {
-      setError('Paste an IMDb id (tt…) or TMDb id, or use Switch to manual below.');
+      setError(
+        'Paste an IMDb id (tt...) or TMDb id first. Use manual only if the title is not listed there.'
+      );
       return;
     }
 
@@ -115,8 +133,11 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
         setError('No match for that id.');
         return;
       }
-      // exists_in_db → skip the confirm step entirely.
-      if (r.exists_in_db && r.feature_id) {
+      // exists_in_db AND not a tvshow → skip the confirm step entirely
+      // (movie-to-feature is unambiguous). For tvshows we still need
+      // the user to pick a season/episode — uploads must never target
+      // the series level (plan §9.1).
+      if (r.exists_in_db && r.feature_id && r.type !== 'tvshow') {
         onCreated(restResponseToMovieGuess(r), r);
         return;
       }
@@ -146,6 +167,12 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
           title: selectedEpisode.title || resolved.title,
           year: selectedEpisode.year || resolved.year,
           type: 'episode',
+          imdb_id: selectedEpisode.imdb_id,
+          season: selectedSeason,
+          episode: selectedEpisode.episode_number,
+          parent_imdbid: resolved.imdb_id,
+          parent_feature_id: resolved.feature_id,
+          source: resolved.source,
         });
         onCreated(
           {
@@ -168,6 +195,9 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
         title: resolved.title,
         year: resolved.year,
         type: 'movie',
+        imdb_id: resolved.imdb_id,
+        tmdb_id: resolved.tmdb_id,
+        source: resolved.source,
       });
       onCreated(
         {
@@ -178,6 +208,35 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
         result
       );
     } catch (err) {
+      const duplicate = duplicateFeatureResult(err, resolved);
+      if (duplicate) {
+        if (resolved.type === 'tvshow' && selectedEpisode) {
+          onCreated(
+            {
+              ...restResponseToMovieGuess(resolved),
+              kind: 'episode',
+              season: selectedSeason,
+              episode: selectedEpisode.episode_number,
+              episode_imdbid: selectedEpisode.imdb_id,
+              parent_imdbid: resolved.imdb_id,
+              feature_id: duplicate.feature_id,
+              provisional: false,
+            },
+            duplicate
+          );
+          return;
+        }
+
+        onCreated(
+          {
+            ...restResponseToMovieGuess(resolved),
+            feature_id: duplicate.feature_id,
+            provisional: false,
+          },
+          duplicate
+        );
+        return;
+      }
       setError(humaniseError(err));
     } finally {
       setSubmitting(false);
@@ -229,8 +288,8 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
           <>
             <h2 className="text-lg font-semibold text-base-content">Create new entry</h2>
             <p className="text-sm text-base-content/70">
-              The movie or show isn't in our database yet. Paste an IMDb or TMDb id and we'll
-              fetch the canonical title for confirmation.
+              The movie or show isn't in our database yet. Paste an IMDb or TMDb id and we'll fetch
+              the canonical title for confirmation before upload.
             </p>
           </>
         )}
@@ -297,7 +356,7 @@ export function StubFeatureDialog({ initialTitle = '', onCreated, onCancel }) {
                 }}
               >
                 <Edit3 className="size-3" />
-                Switch to manual entry
+                Not listed on IMDb/TMDb: manual entry
               </button>
               <div className="flex gap-2">
                 <button
@@ -573,12 +632,31 @@ function restResponseToMovieGuess(r) {
   };
 }
 
+function duplicateFeatureResult(err, resolved) {
+  if (err?.code !== 'duplicate') return null;
+  const featureId = err?.details?.feature_id;
+  if (!featureId) return null;
+
+  return {
+    feature_id: featureId,
+    type: resolved?.type || 'movie',
+    title: resolved?.title || '',
+    year: resolved?.year || null,
+    imdbid: resolved?.imdb_id || null,
+    tmdbid: resolved?.tmdb_id || null,
+    source: resolved?.source || null,
+    provisional: false,
+    exists_in_db: true,
+    message: err.message || 'A feature with that external id already exists.',
+  };
+}
+
 function humaniseError(err) {
   if (err?.code === 'unauthorized' || err?.status === 401) {
     return 'You must be logged in to create a new entry.';
   }
   if (err?.code === 'imdb_id_not_found' || err?.code === 'tmdb_id_not_found') {
-    return 'No match for that id. Double-check it, or use Switch to manual.';
+    return 'No match for that id. Double-check it; use manual only if it is not listed on IMDb/TMDb.';
   }
   if (err?.code === 'invalid_imdb_id') {
     return "That doesn't look like a valid IMDb id (expecting tt-prefixed digits).";

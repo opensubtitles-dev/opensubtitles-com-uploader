@@ -273,6 +273,36 @@ describe('uploadApi.createStubFeature', () => {
     assert.equal(client.calls[0].path, '/subtitles/upload/features/stub');
     assert.deepEqual(client.calls[0].body, { title: 'My Movie', year: 2024, type: 'movie' });
   });
+
+  test('includes external ids and episode parent linkage when provided', async () => {
+    const client = makeFakeClient(async () => ({ feature_id: 9002, provisional: true }));
+    const api = createUploadApi({ client });
+    await api.createStubFeature({
+      title: 'Pilot',
+      year: 2024,
+      type: 'episode',
+      imdb_id: 'tt1234567',
+      tmdb_id: 123,
+      source: 'imdb',
+      season: 1,
+      episode: 2,
+      parent_imdbid: 'tt7654321',
+      parent_feature_id: 42,
+    });
+
+    assert.deepEqual(client.calls[0].body, {
+      title: 'Pilot',
+      year: 2024,
+      type: 'episode',
+      imdb_id: 'tt1234567',
+      tmdb_id: 123,
+      source: 'imdb',
+      season: 1,
+      episode: 2,
+      parent_imdbid: 'tt7654321',
+      parent_feature_id: 42,
+    });
+  });
 });
 
 describe('uploadApi.resolveFromId', () => {

@@ -140,9 +140,12 @@ export class OpenSubtitlesApiService {
               lang.language_name_original || lang.original_name || lang.name_original || '';
             const iso639_3 = lang.iso639_3 || lang.iso6393 || '';
 
-            if (code && name && flag) {
+            // FastText returns flag:"" for every language, so we require only
+            // code + name. The empty flag falls through to the local
+            // LANGUAGE_FLAGS lookup in useLanguageData → combineLanguageData.
+            if (code && name) {
               languageMap[code.toLowerCase()] = {
-                flag,
+                flag: flag || '',
                 name,
                 originalName,
                 iso639_3,

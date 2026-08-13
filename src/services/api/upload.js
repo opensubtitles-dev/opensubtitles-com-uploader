@@ -55,6 +55,19 @@ export function normalizeGuessResult(best, reason) {
     feature_id: best.feature_id != null ? Number(best.feature_id) : null,
     tmdb_id: best.tmdbid != null ? Number(best.tmdbid) : null,
     score,
+
+    // TV episode coords — set when the backend matched a Tvshow parent with
+    // guessit-derived S/E numbers (per /guess controller). Empty for movies.
+    season_number: best.season_number != null ? Number(best.season_number) : null,
+    episode_number: best.episode_number != null ? Number(best.episode_number) : null,
+
+    // Parent (TV show) carry-through — Rails attaches these on episode
+    // matches so the UI can render "Show title" + "SxxExx – Episode" and
+    // a parent-show IMDb link without a follow-up /features round-trip.
+    show_title: best.parent_title || null,
+    parent_imdb_id:
+      best.parent_imdb_id != null ? `tt${String(best.parent_imdb_id).padStart(7, '0')}` : null,
+    parent_year: best.parent_year != null ? Number(best.parent_year) : null,
   };
 }
 
@@ -157,14 +170,49 @@ export function createUploadApi({ client = defaultClient } = {}) {
      * POST /subtitles/upload/features/stub — provisional feature creation
      * for the "movie not in IMDb/TMDb" flow. Requires JWT (logged-in user).
      *
-     * Returns: { feature_id, type, title, year, provisional, message }
+     * Manual flow: pass { title, year, type } only — server defaults
+     * `source` to "manual" and the feature lands without external ids.
+     *
+     * Resolved-from-id flow (after /features/from_id + user confirmation):
+     * pass `imdb_id`, optionally `tmdb_id`, and `source: 'imdb' | 'tmdb'`
+     * so the feature row carries the canonical external id from creation.
+     * For episodes, pass `parent_imdbid` or `parent_feature_id` when known
+     * so the new row can stay attached to its series.
+     * The server uses imdb_id (or tmdb_id + type) as the dedup key — a
+     * retry with the same id returns 409 + the existing feature_id
+     * instead of inserting a duplicate row.
+     *
+     * Returns: { feature_id, type, title, year, imdbid, tmdbid, source,
+     *           provisional, message }
      */
-    async createStubFeature({ title, year, type }, opts = {}) {
-      return client.post(
-        '/subtitles/upload/features/stub',
-        { title, year, type },
-        { signal: opts.signal }
-      );
+    async createStubFeature(
+      {
+        title,
+        year,
+        type,
+        imdb_id,
+        tmdb_id,
+        source,
+        season,
+        episode,
+        parent_imdbid,
+        parent_feature_id,
+      } = {},
+      opts = {}
+    ) {
+      const body = { title, year, type };
+      if (imdb_id != null && imdb_id !== '' && imdb_id !== 0) body.imdb_id = imdb_id;
+      if (tmdb_id != null && tmdb_id !== '' && tmdb_id !== 0) body.tmdb_id = tmdb_id;
+      if (season != null && season !== '' && season !== 0) body.season = season;
+      if (episode != null && episode !== '' && episode !== 0) body.episode = episode;
+      if (parent_imdbid != null && parent_imdbid !== '' && parent_imdbid !== 0) {
+        body.parent_imdbid = parent_imdbid;
+      }
+      if (parent_feature_id != null && parent_feature_id !== '' && parent_feature_id !== 0) {
+        body.parent_feature_id = parent_feature_id;
+      }
+      if (source) body.source = source;
+      return client.post('/subtitles/upload/features/stub', body, { signal: opts.signal });
     },
 
     /**

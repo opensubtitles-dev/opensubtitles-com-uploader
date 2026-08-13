@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Upload, CheckCircle2, AlertTriangle, Loader2, XCircle } from 'lucide-react';
 import { UserService } from '../services/userService.js';
+import { buildUploadTarget, describeUploadTarget } from '../utils/uploadTarget.js';
 
 export const UploadButton = ({
   pairedFiles,
@@ -109,27 +110,47 @@ export const UploadButton = ({
         hasBlockingErrors = true;
       }
 
-      // Check if we have a valid IMDb ID for upload
+      // Check if we have a valid upload target for REST upload
       const bestMovieData = !hasBlockingErrors
         ? getBestMovieData(subtitle.fullPath, movieData)
         : null;
-      const uploadImdbId =
-        bestMovieData?.kind === 'episode' && bestMovieData.imdbid
-          ? bestMovieData.imdbid
-          : movieData?.imdbid;
+      const uploadTarget = buildUploadTarget(movieData, bestMovieData);
 
       console.log(`   - Best movie data:`, bestMovieData);
-      console.log(`   - Upload IMDb ID: ${uploadImdbId}`);
+      console.log(`   - Upload target: ${describeUploadTarget(uploadTarget)}`);
 
-      if (!hasBlockingErrors && !uploadImdbId) {
-        console.log(`   - ❌ BLOCKING ERROR: No IMDb ID available`);
+      if (!hasBlockingErrors && !uploadTarget.hasTarget) {
+        console.log(`   - ❌ BLOCKING ERROR: No upload target available`);
         errors.push(
           createSubtitleError(
-            `"${subtitleName}": No IMDb ID available for upload`,
+            `"${subtitleName}": No movie identifier available for upload`,
             subtitle.fullPath
           )
         );
         hasBlockingErrors = true;
+      }
+
+      // Uploads must NEVER target a tvshow at the series level — pick an
+      // episode first (plan §9.1). Triggered when the user selected a
+      // tvshow from search/imdb-lookup but didn't go through the episode
+      // picker dialog, or when guessit failed to extract S/E coords.
+      if (!hasBlockingErrors && movieData?.kind === 'tvshow') {
+        const hasEpisodeCoords =
+          bestMovieData?.kind === 'episode' ||
+          movieData?.season_number != null ||
+          movieData?.episode_number != null ||
+          movieData?.season != null ||
+          movieData?.episode != null;
+        if (!hasEpisodeCoords) {
+          console.log(`   - ❌ BLOCKING ERROR: Tvshow without episode pick`);
+          errors.push(
+            createSubtitleError(
+              `"${subtitleName}": Pick a season and episode — uploads cannot target a TV show at the series level`,
+              subtitle.fullPath
+            )
+          );
+          hasBlockingErrors = true;
+        }
       }
 
       // Check if subtitle has language selected
@@ -159,30 +180,28 @@ export const UploadButton = ({
       }
 
       // Check if we have features data for the upload IMDb ID (warnings only)
-      if (!hasBlockingErrors) {
-        const featuresData = featuresByImdbId[uploadImdbId];
+      if (!hasBlockingErrors && uploadTarget.idmovieimdb) {
+        const featuresData = featuresByImdbId[uploadTarget.idmovieimdb];
         if (!featuresData) {
           warnings.push(
             createSubtitleError(
-              `"${subtitleName}": Features data not loaded for IMDb ${uploadImdbId}`,
+              `"${subtitleName}": Features data not loaded for IMDb ${uploadTarget.idmovieimdb}`,
               subtitle.fullPath
             )
           );
         } else if (featuresData.error) {
           warnings.push(
             createSubtitleError(
-              `"${subtitleName}": Features data error for IMDb ${uploadImdbId}: ${featuresData.error}`,
-              subtitle.fullPath
-            )
-          );
-        } else if (!featuresData.data?.[0]?.attributes) {
-          warnings.push(
-            createSubtitleError(
-              `"${subtitleName}": Features data format error for IMDb ${uploadImdbId}`,
+              `"${subtitleName}": Features data error for IMDb ${uploadTarget.idmovieimdb}: ${featuresData.error}`,
               subtitle.fullPath
             )
           );
         }
+        // Note: previously also warned on `!featuresData.data?.[0]?.attributes`
+        // ("Features data format error"). Removed — upload only needs the
+        // imdbid + S/E coords, and the warning fired on benign race
+        // conditions (features fetch not yet completed) without being
+        // actionable for the user.
       }
 
       // Count this orphaned subtitle as ready only if no blocking errors occurred
@@ -236,18 +255,54 @@ export const UploadButton = ({
         hasBlockingErrors = true;
       }
 
-      // Check if we have a valid IMDb ID for upload
+      // Check if we have a valid upload target for REST upload
       const bestMovieData = !hasBlockingErrors ? getBestMovieData(videoPath, movieData) : null;
-      const uploadImdbId =
-        bestMovieData?.kind === 'episode' && bestMovieData.imdbid
-          ? bestMovieData.imdbid
-          : movieData?.imdbid;
+      const uploadTarget = buildUploadTarget(movieData, bestMovieData);
 
-      if (!hasBlockingErrors && !uploadImdbId) {
+      if (!hasBlockingErrors && !uploadTarget.hasTarget) {
         errors.push(
-          createClickableError(`"${videoName}": No IMDb ID available for upload`, videoPath)
+          createClickableError(
+            `"${videoName}": No movie identifier available for upload`,
+            videoPath
+          )
         );
         hasBlockingErrors = true;
+      }
+
+      // Tvshow without episode coords → block. Same rule as the orphan
+      // branch above (plan §9.1 — uploads never target series level).
+      if (!hasBlockingErrors && movieData?.kind === 'tvshow') {
+        const hasEpisodeCoords =
+          bestMovieData?.kind === 'episode' ||
+          movieData?.season_number != null ||
+          movieData?.episode_number != null ||
+          movieData?.season != null ||
+          movieData?.episode != null;
+        if (!hasEpisodeCoords) {
+          errors.push(
+            createClickableError(
+              `"${videoName}": Pick a season and episode — uploads cannot target a TV show at the series level`,
+              videoPath
+            )
+          );
+          hasBlockingErrors = true;
+        }
+      }
+
+      // Paired uploads need a movie hash, but hash status should be reported
+      // separately from movie identification.
+      if (!hasBlockingErrors) {
+        if (!video.movieHash) {
+          errors.push(
+            createClickableError(`"${videoName}": Movie hash is still calculating`, videoPath)
+          );
+          hasBlockingErrors = true;
+        } else if (video.movieHash === 'error') {
+          errors.push(
+            createClickableError(`"${videoName}": Movie hash calculation failed`, videoPath)
+          );
+          hasBlockingErrors = true;
+        }
       }
 
       // Check if all subtitles have languages selected
@@ -283,30 +338,25 @@ export const UploadButton = ({
       }
 
       // Check if we have features data for the upload IMDb ID (warnings only)
-      if (!hasBlockingErrors) {
-        const featuresData = featuresByImdbId[uploadImdbId];
+      if (!hasBlockingErrors && uploadTarget.idmovieimdb) {
+        const featuresData = featuresByImdbId[uploadTarget.idmovieimdb];
         if (!featuresData) {
           warnings.push(
             createClickableError(
-              `"${videoName}": Features data not loaded for IMDb ${uploadImdbId}`,
+              `"${videoName}": Features data not loaded for IMDb ${uploadTarget.idmovieimdb}`,
               videoPath
             )
           );
         } else if (featuresData.error) {
           warnings.push(
             createClickableError(
-              `"${videoName}": Features data error for IMDb ${uploadImdbId}: ${featuresData.error}`,
-              videoPath
-            )
-          );
-        } else if (!featuresData.data?.[0]?.attributes) {
-          warnings.push(
-            createClickableError(
-              `"${videoName}": Features data format error for IMDb ${uploadImdbId}`,
+              `"${videoName}": Features data error for IMDb ${uploadTarget.idmovieimdb}: ${featuresData.error}`,
               videoPath
             )
           );
         }
+        // Note: previously also warned on `!featuresData.data?.[0]?.attributes`.
+        // Removed — non-actionable noise; upload uses imdbid + coords directly.
       }
 
       // Count subtitles as ready only if no blocking errors occurred

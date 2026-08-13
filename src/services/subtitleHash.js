@@ -316,18 +316,23 @@ export class SubtitleHashService {
   }
 
   /**
-   * Get language ID in 3-letter format for OpenSubtitles
-   * @param {string} languageCode - 2 or 3 letter language code
-   * @param {Object} combinedLanguages - Language data
-   * @returns {string} - 3-letter language code
+   * Get the upload-list language code for the commit payload's `sublanguageid`.
+   *
+   * The Rails endpoint accepts the value returned by `/api/v1/infos/languages`
+   * (`language_code`, typically a 2-letter code like `'fr'`, `'en'`). The
+   * legacy implementation here returned `iso639_3` (e.g. `'fre'`, `'eng'`)
+   * which the Rails endpoint rejects with `"Unknown language code: fre"`.
+   *
+   * @param {string} languageCode - code resolved by `resolveUploadLanguageCode`
+   *   (already the upload-list key)
+   * @param {Object} combinedLanguages - map from `useLanguageData`
+   * @returns {string|null} - upload-list code, ready to send as `sublanguageid`
    */
   static getLanguageId(languageCode, combinedLanguages) {
     if (!languageCode || !combinedLanguages) return null;
-
-    const langData = combinedLanguages[languageCode];
-    if (!langData) return languageCode;
-
-    // Return ISO639-3 if available, otherwise ISO639-2, otherwise original
-    return langData.iso639_3 || langData.iso639_2 || langData.iso639 || languageCode;
+    // `getSubtitleLanguage` already returns the upload-list code (the
+    // `language_code` from `/infos/languages`). Return it as-is — do NOT
+    // upgrade to iso639_3 because Rails has no mapping from 3-letter codes.
+    return languageCode;
   }
 }

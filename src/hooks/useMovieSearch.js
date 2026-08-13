@@ -1,5 +1,6 @@
 import React from 'react';
 import { featuresApi } from '../services/api/features.js';
+import { uploadApi } from '../services/api/upload.js';
 
 /**
  * Shared movie search hook for both MatchedPairs and OrphanedSubtitles
@@ -8,6 +9,13 @@ import { featuresApi } from '../services/api/features.js';
  * Backend: GET /api/v1/features (replaces legacy
  * https://www.opensubtitles.org/libs/suggest_imdb.php).
  * See docs/plans/02-endpoint-mapping.md §E6 + §E7.
+ *
+ * IMDb-id input is special-cased: instead of hitting the Searchkick-backed
+ * `/features?imdb_id=…` endpoint (which can miss freshly-imported rows),
+ * we call `/subtitles/upload/features/from_id` which does an unscoped
+ * `Feature.find_by(imdbid: …)` and additionally returns the season/episode
+ * graph for tvshow features. This makes id-pasted lookups deterministic
+ * AND wires the result into the tvshow → episode-picker flow.
  */
 export const useMovieSearch = onMovieChange => {
   const [openMovieSearch, setOpenMovieSearch] = React.useState(null);
@@ -15,6 +23,14 @@ export const useMovieSearch = onMovieChange => {
   const [movieSearchResults, setMovieSearchResults] = React.useState([]);
   const [movieSearchLoading, setMovieSearchLoading] = React.useState(false);
   const [movieUpdateLoading, setMovieUpdateLoading] = React.useState({});
+
+  // When the user picks an external IMDb/TMDb result that is not yet a
+  // persisted Feature, stash the resolve-envelope here and let MovieSearch
+  // open StubFeatureDialog in confirming-mode. That dialog calls
+  // /features/stub before we accept the selection as upload-ready.
+  // Tvshows use the same path so the user picks a season+episode; uploads
+  // must never target the series level (plan §9.1).
+  const [pendingResolvedFeature, setPendingResolvedFeature] = React.useState(null);
 
   // Clear search state when closing
   const closeMovieSearch = () => {
@@ -66,7 +82,34 @@ export const useMovieSearch = onMovieChange => {
     return extractImdbId(input) !== null;
   };
 
-  // Debounced movie search — hits .com REST /features endpoint
+  // Convert a /upload/features/from_id envelope into a single dropdown row
+  // (shape compatible with normalizeFeatureForUi). The `_resolveEnvelope`
+  // hidden field carries the original payload so handleMovieSelect can force
+  // Feature creation when the id resolves externally but is not in our DB yet.
+  const envelopeToSearchRow = envelope => {
+    if (!envelope || !envelope.found) return null;
+    const ttId = envelope.imdb_id || null;
+    return {
+      id: ttId,
+      name: envelope.title || '',
+      title: envelope.title || '',
+      original_title: envelope.original_title || '',
+      year: envelope.year != null ? Number(envelope.year) : null,
+      kind: (envelope.type || '').toLowerCase(),
+      feature_id: envelope.feature_id != null ? Number(envelope.feature_id) : null,
+      imdb_id: ttId ? Number(String(ttId).replace(/^tt/i, '')) : null,
+      tmdb_id: envelope.tmdb_id != null ? Number(envelope.tmdb_id) : null,
+      img_url: envelope.poster_url || '',
+      url: '',
+      parent_imdb_id: null,
+      season_number: envelope.preselected?.season_number ?? null,
+      episode_number: envelope.preselected?.episode_number ?? null,
+      _resolveEnvelope: envelope,
+    };
+  };
+
+  // Debounced movie search — hits .com REST /features endpoint (text query)
+  // or /upload/features/from_id (imdb id input).
   React.useEffect(() => {
     if (!movieSearchQuery.trim()) {
       setMovieSearchResults([]);
@@ -80,11 +123,38 @@ export const useMovieSearch = onMovieChange => {
         const query = movieSearchQuery.trim();
         const imdbId = extractImdbId(query);
 
-        const { data } = imdbId
-          ? await featuresApi.byImdbId(imdbId, { signal: controller.signal })
-          : await featuresApi.searchByQuery(query, { signal: controller.signal });
-
-        setMovieSearchResults(data);
+        if (imdbId) {
+          // ID path — resolveFromId handles DB hits AND TMDb fallback in
+          // one call, and ships the series graph for tvshow rows.
+          try {
+            const envelope = await uploadApi.resolveFromId(
+              { imdbId },
+              { signal: controller.signal }
+            );
+            const row = envelopeToSearchRow(envelope);
+            setMovieSearchResults(row ? [row] : []);
+          } catch (err) {
+            if (err?.name === 'AbortError') return;
+            // 404 / 422 → just show "no results"; not_found is normal UX
+            const code = err?.code || err?.details?.error;
+            if (
+              code === 'imdb_id_not_found' ||
+              code === 'invalid_imdb_id' ||
+              code === 'missing_id'
+            ) {
+              setMovieSearchResults([]);
+            } else {
+              console.error('Movie search (imdb) error:', err);
+              setMovieSearchResults([]);
+            }
+          }
+        } else {
+          // Text path — unchanged.
+          const { data } = await featuresApi.searchByQuery(query, {
+            signal: controller.signal,
+          });
+          setMovieSearchResults(data);
+        }
       } catch (error) {
         if (error?.name !== 'AbortError') {
           console.error('Movie search error:', error);
@@ -131,8 +201,73 @@ export const useMovieSearch = onMovieChange => {
     setMovieSearchQuery(query);
   };
 
-  // Handle movie selection from search results
+  // Lazy-resolve a tvshow row that came from text search (no envelope yet).
+  // Returns the envelope or null on failure.
+  const resolveTvshowEnvelope = async movie => {
+    if (movie?._resolveEnvelope) return movie._resolveEnvelope;
+    const imdbInput = movie?.id || movie?.imdbid;
+    if (!imdbInput) return null;
+    try {
+      return await uploadApi.resolveFromId({ imdbId: imdbInput });
+    } catch (err) {
+      console.error('Failed to resolve tvshow envelope:', err);
+      return null;
+    }
+  };
+
+  // Handle movie selection — accepts EITHER shape:
+  //   - search-result shape from `normalizeFeatureForUi` / envelopeToSearchRow:
+  //       { id: "tt0133093", name: "The Matrix", year, kind, feature_id,
+  //         _resolveEnvelope? }
+  //   - movieGuess shape from StubFeatureDialog's onCreated:
+  //       { imdbid: "tt0056869", title: "The Birds", year, kind, feature_id, ... }
+  // Search rows may also contain `title`, so detect the explicit search-row
+  // shape first. Otherwise normal /features selections lose their `id`.
   const handleMovieSelect = async (itemPath, movie) => {
+    const isSearchResultShape =
+      movie?.id != null || movie?.name != null || movie?._resolveEnvelope != null;
+    const isGuessShape = !isSearchResultShape && (movie?.imdbid != null || movie?.title != null);
+
+    const openResolvedFeatureDialog = async envelope => {
+      closeMovieSearch();
+      setMovieUpdateLoading(prev => ({ ...prev, [itemPath]: true }));
+      try {
+        if (envelope && envelope.found) {
+          setPendingResolvedFeature({ itemPath, envelope });
+        }
+      } finally {
+        setMovieUpdateLoading(prev => ({ ...prev, [itemPath]: false }));
+      }
+    };
+
+    // Tvshow → ALWAYS open the episode picker. Never let a bare show
+    // imdb_id propagate as the final upload target.
+    const kindStr = (movie?.kind || '').toLowerCase();
+    if (!isGuessShape && kindStr === 'tvshow') {
+      const envelope = await resolveTvshowEnvelope(movie);
+      if (envelope && envelope.found) {
+        await openResolvedFeatureDialog(envelope);
+      } else {
+        // Couldn't resolve — fall back to old behaviour so the user
+        // isn't blocked, but log loudly.
+        console.warn('Tvshow selected but resolveFromId returned no envelope', movie);
+      }
+      return;
+    }
+
+    // IMDb/TMDb lookup result not yet persisted in our DB → require the
+    // confirm/create step first. Otherwise upload would send idmovieimdb and
+    // the backend would reject with "No feature found for IMDb ID".
+    const resolveEnvelope = movie?._resolveEnvelope;
+    if (
+      !isGuessShape &&
+      resolveEnvelope?.found &&
+      !(resolveEnvelope.exists_in_db && resolveEnvelope.feature_id)
+    ) {
+      await openResolvedFeatureDialog(resolveEnvelope);
+      return;
+    }
+
     // Close search interface
     closeMovieSearch();
 
@@ -140,14 +275,36 @@ export const useMovieSearch = onMovieChange => {
     setMovieUpdateLoading(prev => ({ ...prev, [itemPath]: true }));
 
     try {
-      // Create new movie guess object
-      const newMovieGuess = {
-        imdbid: movie.id,
-        title: movie.name,
-        year: movie.year,
-        kind: movie.kind,
-        reason: 'User selected',
-      };
+      const newMovieGuess = isGuessShape
+        ? {
+            // Pass guess-shape through, preserving feature_id / tmdb_id /
+            // provisional / poster_url so the upload pipeline can use the
+            // freshly created stub feature without another lookup.
+            imdbid: movie.imdbid ?? null,
+            title: movie.title ?? movie.name ?? '',
+            year: movie.year ?? null,
+            kind: movie.kind ?? '',
+            reason: movie.reason ?? 'User selected',
+            feature_id: movie.feature_id ?? null,
+            tmdb_id: movie.tmdb_id ?? movie.tmdbid ?? null,
+            provisional: movie.provisional ?? false,
+            poster_url: movie.poster_url ?? movie.img_url ?? null,
+            // Episode-coords carry-through (when dialog produced an episode).
+            season_number: movie.season ?? movie.season_number ?? null,
+            episode_number: movie.episode ?? movie.episode_number ?? null,
+            episode_imdbid: movie.episode_imdbid ?? null,
+            parent_imdbid: movie.parent_imdbid ?? null,
+          }
+        : {
+            imdbid: movie.id || movie.imdbid || null,
+            title: movie.name || movie.title || '',
+            year: movie.year,
+            kind: movie.kind,
+            reason: 'User selected',
+            feature_id: movie.feature_id ?? null,
+            tmdb_id: movie.tmdb_id ?? movie.tmdbid ?? null,
+            poster_url: movie.img_url ?? null,
+          };
 
       // Call the parent component's movie change handler
       if (onMovieChange) {
@@ -163,6 +320,18 @@ export const useMovieSearch = onMovieChange => {
     }
   };
 
+  // Called by MovieSearch after StubFeatureDialog returns a movieGuess shape
+  // created from /features/stub. Just forwards through the normal
+  // handleMovieSelect → onMovieChange path.
+  const acceptResolvedFeatureGuess = async (itemPath, movieGuess) => {
+    setPendingResolvedFeature(null);
+    await handleMovieSelect(itemPath, movieGuess);
+  };
+
+  const clearPendingResolvedFeature = () => {
+    setPendingResolvedFeature(null);
+  };
+
   return {
     // State
     openMovieSearch,
@@ -170,12 +339,15 @@ export const useMovieSearch = onMovieChange => {
     movieSearchResults,
     movieSearchLoading,
     movieUpdateLoading,
+    pendingResolvedFeature,
 
     // Actions
     handleOpenMovieSearch,
     handleMovieSearch,
     handleMovieSelect,
     closeMovieSearch,
+    acceptResolvedFeatureGuess,
+    clearPendingResolvedFeature,
 
     // Utilities
     extractImdbId,

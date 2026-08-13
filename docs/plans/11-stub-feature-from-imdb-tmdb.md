@@ -1,9 +1,30 @@
 # Plan: Create-from-ID workflow for missing titles
 
 **Date:** 2026-05-07
-**Status:** Spec — not yet implemented
+**Status:** Largely shipped (see callout)
 **Owners:** uploader (this repo) + osdb3 backend (separate plan)
-**Cross-ref:** osdb3-side counterpart → `docs/plans/2026-05-07-stub-feature-from-imdb-tmdb.md` (to be written)
+**Cross-ref:** osdb3-side counterpart → `docs/plans/2026-05-07-stub-feature-from-imdb-tmdb.md`
+
+> [!success] Status as of 2026-05-26
+> Backend and frontend are both on staging.
+> - **Resolve flow** — `uploadApi.resolveFromId({imdbId, tmdbId})` calls
+>   `POST /subtitles/upload/features/from_id` (`src/services/api/upload.js:218-227`).
+>   The server normalises episode imdb_ids to the parent show + preselected
+>   coords and embeds the full season/episode graph.
+> - **Confirm + create** — `StubFeatureDialog.jsx` runs the two-state machine
+>   (`resolve → confirming`), renders the season/episode picker for tvshow
+>   responses (`StubFeatureDialog.jsx:391-405`), and `onCreated` propagates
+>   `imdb_id` / `tmdb_id` / `source` into `createStubFeature` so the server
+>   row carries the canonical external id (`upload.js:173-179`).
+> - **Server policy** — resolved-from-id stubs come back `enabled: true`
+>   (not `enabled: false` as the original §3 of the backend plan implied),
+>   so `/guess` can find them immediately. Only `source: "manual"` rows
+>   stay disabled until a moderator approves.
+> - **Known cosmetic issue** — TMDB poster thumbnails occasionally fail
+>   to render under the host page's Cross-Origin-Resource-Policy headers
+>   (CORP). It does not block the flow; the confirm step still shows
+>   title / year / IMDb id / picker. Tracked as a polish item, not a
+>   blocker.
 
 ---
 

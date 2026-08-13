@@ -1,7 +1,21 @@
 import React, { useState } from 'react';
-import { useTheme } from '../../contexts/ThemeContext.jsx';
 import { UploadEditDialog } from './UploadEditDialog.jsx';
 import { UploadDeleteConfirm } from './UploadDeleteConfirm.jsx';
+
+// Mirrors Rails `Subtitle::SUBTITLE_STATUSES` — keep in sync with
+// app/models/subtitle.rb if the server enum grows.
+const STATUS_BADGE = {
+  pending: { cls: 'badge badge-warning badge-sm', label: 'Pending review' },
+  live: { cls: 'badge badge-success badge-sm', label: 'Live' },
+  disabled: { cls: 'badge badge-ghost badge-sm', label: 'Disabled' },
+  spam: { cls: 'badge badge-error badge-sm', label: 'Spam' },
+  blacklisted: { cls: 'badge badge-error badge-sm', label: 'Blacklisted' },
+};
+
+function statusFor(item) {
+  if (item.status && STATUS_BADGE[item.status]) return item.status;
+  return item.enabled === false ? 'disabled' : 'live';
+}
 
 const RTF =
   typeof Intl !== 'undefined' && typeof Intl.RelativeTimeFormat === 'function'
@@ -31,81 +45,56 @@ function timeAgo(iso) {
 }
 
 export function UploadHistoryItem({ item, onUpdate, onDelete }) {
-  const { isDark } = useTheme();
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const cardCls = `border rounded-lg p-4 ${
-    isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-  }`;
-  const subtleCls = isDark ? 'text-gray-400' : 'text-gray-500';
-
-  const flagged = item.status === 'flagged_for_review';
-  const disabled = item.enabled === false;
+  const status = statusFor(item);
+  const badge = STATUS_BADGE[status];
 
   return (
-    <article className={cardCls}>
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="font-semibold truncate">{item.release_name || item.subfilename || `#${item.subtitle_id}`}</h3>
-          <div className={`text-sm ${subtleCls} mt-0.5 flex flex-wrap gap-x-3`}>
-            <span>{item.language_code?.toUpperCase() || '—'}</span>
-            <span>Uploaded {timeAgo(item.upload_date) || '—'}</span>
-            <span>{item.download_count ?? 0} downloads</span>
-          </div>
-          {(flagged || disabled) && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {flagged && (
-                <span className="px-2 py-0.5 text-xs rounded bg-amber-100 text-amber-800">
-                  ⚠ Flagged for review
-                </span>
-              )}
-              {disabled && !flagged && (
-                <span className="px-2 py-0.5 text-xs rounded bg-gray-200 text-gray-700">
-                  Disabled
-                </span>
-              )}
+    <article className="card bg-base-100 shadow-sm">
+      <div className="card-body p-4 gap-3">
+        <header className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-semibold truncate text-base-content">
+                {item.release_name || item.subfilename || `#${item.subtitle_id}`}
+              </h3>
+              <span className={badge.cls} title={`Status: ${badge.label}`}>
+                {badge.label}
+              </span>
             </div>
+            <div className="text-sm text-base-content/60 mt-1 flex flex-wrap gap-x-3">
+              <span>{item.language_code?.toUpperCase() || '—'}</span>
+              <span>Uploaded {timeAgo(item.upload_date) || '—'}</span>
+              <span>{item.download_count ?? 0} downloads</span>
+            </div>
+          </div>
+          {item.download_url && (
+            <a
+              href={item.download_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 text-sm link link-primary"
+            >
+              Open ↗
+            </a>
           )}
-        </div>
-        {item.download_url && (
-          <a
-            href={item.download_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`shrink-0 text-sm underline ${
-              isDark ? 'text-blue-300 hover:text-blue-200' : 'text-blue-600 hover:text-blue-800'
-            }`}
-          >
-            Open ↗
-          </a>
-        )}
-      </header>
+        </header>
 
-      <footer className="mt-3 flex gap-2">
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          className={`text-sm px-3 py-1 rounded border ${
-            isDark
-              ? 'border-gray-600 hover:bg-gray-700'
-              : 'border-gray-300 hover:bg-gray-100'
-          }`}
-        >
-          Edit
-        </button>
-        <button
-          type="button"
-          onClick={() => setConfirmingDelete(true)}
-          className={`text-sm px-3 py-1 rounded border ${
-            isDark
-              ? 'border-red-700 text-red-300 hover:bg-red-900/30'
-              : 'border-red-300 text-red-700 hover:bg-red-50'
-          }`}
-        >
-          Delete
-        </button>
-      </footer>
+        <footer className="flex gap-2">
+          <button type="button" onClick={() => setEditing(true)} className="btn btn-ghost btn-sm">
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(true)}
+            className="btn btn-ghost btn-sm text-error"
+          >
+            Delete
+          </button>
+        </footer>
+      </div>
 
       {editing && (
         <UploadEditDialog

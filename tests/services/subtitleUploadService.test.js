@@ -40,8 +40,15 @@ function makeVideo({
 function makeSubtitle({ name = 'Movie.2010.BluRay.eng.srt' } = {}) {
   return { fullPath: `/s/${name}`, name, file: { name } };
 }
-function makeMovieData({ imdbid = '1375666', kind = 'movie' } = {}) {
-  return { imdbid, kind };
+function makeMovieData({
+  imdbid = '1375666',
+  kind = 'movie',
+  feature_id = null,
+  tmdb_id = null,
+  season_number = null,
+  episode_number = null,
+} = {}) {
+  return { imdbid, kind, feature_id, tmdb_id, season_number, episode_number };
 }
 
 // Patch SubtitleHashService methods that hit FileReader / debug — node:test
@@ -121,6 +128,24 @@ describe('prepareUploadDataForSingleSubtitle', () => {
     assert.equal(r.movietimems, '7200000');
     assert.equal(r.moviefps, '23.976');
     assert.equal(r.movieframes, '172607');
+  });
+
+  test('prefers feature_id over IMDb when available', async () => {
+    const r = await SubtitleUploadService.prepareUploadDataForSingleSubtitle({
+      video: makeVideo(),
+      subtitle: makeSubtitle(),
+      movieData: makeMovieData({ imdbid: '1375666', feature_id: 646193 }),
+      guessItData: {},
+      featuresByImdbId: {},
+      getSubtitleLanguage: () => 'en',
+      uploadOptions: {},
+      combinedLanguages: {},
+      addDebugInfo: noop,
+      getVideoMetadata: () => null,
+    });
+
+    assert.equal(r.feature_id, 646193);
+    assert.equal('idmovieimdb' in r, false);
   });
 
   test('omits movie metadata fields when getVideoMetadata returns null', async () => {
@@ -271,7 +296,24 @@ describe('prepareUploadDataForOrphanedSubtitle', () => {
     assert.equal('moviehash' in r, false);
     assert.equal('moviebytesize' in r, false);
     assert.equal('moviefilename' in r, false);
-    assert.equal('idmovieimdb' in r, false); // not sent on /check for orphans
+    assert.equal(r.idmovieimdb, '1375666');
+  });
+
+  test('sends feature_id on orphan /check when that is the best target', async () => {
+    const r = await SubtitleUploadService.prepareUploadDataForOrphanedSubtitle({
+      subtitle: makeSubtitle(),
+      movieData: makeMovieData({ imdbid: null, feature_id: 646193 }),
+      guessItData: {},
+      featuresByImdbId: {},
+      getSubtitleLanguage: () => 'en',
+      uploadOptions: {},
+      combinedLanguages: {},
+      addDebugInfo: noop,
+      orphanedSubtitlesFps: {},
+    });
+
+    assert.equal(r.feature_id, 646193);
+    assert.equal('idmovieimdb' in r, false);
   });
 
   test('includes moviefps when user supplied it', async () => {
@@ -359,5 +401,23 @@ describe('prepareActualUploadDataForOrphanedSubtitle', () => {
     assert.equal(r.high_definition, false);
     assert.equal(r.foreign_parts_only, true);
     assert.equal(r.automatic_translation, true);
+  });
+
+  test('sends feature_id on orphan /upload when that is the best target', async () => {
+    const r = await SubtitleUploadService.prepareActualUploadDataForOrphanedSubtitle({
+      subtitle: makeSubtitle(),
+      movieData: makeMovieData({ imdbid: null, feature_id: 646193 }),
+      guessItData: {},
+      featuresByImdbId: {},
+      getSubtitleLanguage: () => 'en',
+      uploadOptions: {},
+      combinedLanguages: {},
+      addDebugInfo: noop,
+      orphanedSubtitlesFps: {},
+    });
+
+    assert.equal(r.feature_id, 646193);
+    assert.equal('idmovieimdb' in r, false);
+    assert.equal(r.sublanguageid, 'eng');
   });
 });

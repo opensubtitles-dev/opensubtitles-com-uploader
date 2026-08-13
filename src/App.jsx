@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext.jsx';
+import { ThemeProvider } from './contexts/ThemeContext.jsx';
 import SubtitleUploader from './components/SubtitleUploader.jsx';
 import AdBlockTestPage from './components/AdBlockTestPage.jsx';
 import RankRestrictionWarning from './components/RankRestrictionWarning.jsx';
@@ -15,14 +16,16 @@ function App() {
 
   return (
     <AuthProvider>
-      <Router>
-        <RankRestrictionWarning />
-        <Routes>
-          <Route path="/" element={<SubtitleUploader />} />
-          <Route path="/history" element={<UploadHistory />} />
-          <Route path="/adblock" element={<AdBlockTestPage />} />
-        </Routes>
-      </Router>
+      <ThemeProvider>
+        <Router>
+          <RankRestrictionWarning />
+          <Routes>
+            <Route path="/" element={<SubtitleUploader />} />
+            <Route path="/history" element={<UploadHistory />} />
+            <Route path="/adblock" element={<AdBlockTestPage />} />
+          </Routes>
+        </Router>
+      </ThemeProvider>
     </AuthProvider>
   );
 }

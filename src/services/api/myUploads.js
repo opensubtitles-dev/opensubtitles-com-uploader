@@ -29,10 +29,16 @@ export function createMyUploadsApi({ client = defaultClient } = {}) {
      *   meta: { total_count: number, page: number, per_page: number, total_pages: number }
      * }>}
      */
-    async list({ page = 1, perPage = 20, languageCode, enabled, signal } = {}) {
+    async list({ page = 1, perPage = 20, languageCode, enabled, status, signal } = {}) {
       const query = { page, per_page: perPage };
       if (languageCode) query.language_code = languageCode;
-      if (enabled !== undefined) query.enabled = enabled;
+      // Prefer `status` enum (active|disabled|flagged_for_review) when set;
+      // fall back to legacy `enabled` boolean for callers not migrated yet.
+      if (status) {
+        query.status = status;
+      } else if (enabled !== undefined) {
+        query.enabled = enabled;
+      }
       return client.get('/my/uploads', { query, signal });
     },
 

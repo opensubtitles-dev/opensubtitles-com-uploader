@@ -734,10 +734,10 @@ export const OrphanedSubtitles = ({
                                         ? combinedLanguages[detectedLanguage]
                                         : null;
                                       if (lang) {
-                                        const upper = (
-                                          lang.iso639_3 || detectedLanguage
+                                        const code = (
+                                          lang.language_code || detectedLanguage
                                         )?.toUpperCase();
-                                        return `${lang.flag} ${lang.displayName} (${upper})`;
+                                        return `${lang.flag} ${code} - ${lang.displayName}`;
                                       }
                                       if (detectedLanguage) {
                                         return `🏳️ ${detectedLanguage.toUpperCase()}`;
@@ -791,13 +791,13 @@ export const OrphanedSubtitles = ({
                                           const searchTerm =
                                             dropdownSearch[subtitle.fullPath] || '';
                                           if (!searchTerm) return true;
+                                          const search = searchTerm.toLowerCase();
                                           return (
-                                            lang.displayName
-                                              .toLowerCase()
-                                              .includes(searchTerm.toLowerCase()) ||
-                                            lang.iso639
-                                              ?.toLowerCase()
-                                              .includes(searchTerm.toLowerCase())
+                                            lang.displayName?.toLowerCase().includes(search) ||
+                                            lang.language_code?.toLowerCase().includes(search) ||
+                                            lang.iso639_3?.toLowerCase().includes(search) ||
+                                            lang.code?.toLowerCase().includes(search) ||
+                                            lang.originalName?.toLowerCase().includes(search)
                                           );
                                         })
                                         .map(lang => (
@@ -818,11 +818,20 @@ export const OrphanedSubtitles = ({
                                             }
                                           >
                                             <span>{lang.flag}</span>
-                                            <span style={{ color: themeColors.text }}>
-                                              {lang.displayName}
+                                            <span
+                                              style={{
+                                                color: themeColors.textSecondary,
+                                                fontFamily: 'monospace',
+                                              }}
+                                            >
+                                              {(
+                                                lang.language_code ||
+                                                lang.code ||
+                                                ''
+                                              ).toUpperCase()}
                                             </span>
-                                            <span style={{ color: themeColors.textSecondary }}>
-                                              ({lang.iso639?.toUpperCase()})
+                                            <span style={{ color: themeColors.text }}>
+                                              — {lang.displayName}
                                             </span>
                                             {lang.isDetected && (
                                               <span
@@ -972,8 +981,15 @@ export const OrphanedSubtitles = ({
                               {(() => {
                                 const result = uploadResults[subtitle.fullPath];
 
-                                // Check for error responses first (anything that's not "200 OK")
-                                if (result.status && result.status !== '200 OK') {
+                                // v2 REST envelope uses { status: 'created' | 'flagged_for_review' }
+                                // for success. Anything else with a non-"200 OK" status is a real
+                                // error (legacy XMLRPC stuffed error strings into `status`).
+                                const REST_OK_STATUSES = ['created', 'flagged_for_review'];
+                                if (
+                                  result.status &&
+                                  result.status !== '200 OK' &&
+                                  !REST_OK_STATUSES.includes(result.status)
+                                ) {
                                   return (
                                     <div className="text-sm">
                                       <span className="text-red-400">❌ Upload failed:</span>

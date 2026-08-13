@@ -307,6 +307,22 @@ We don't delete `xmlrpc.js` on day one. We ghost-build the new client alongside 
 9. Land `upload.js#createStubFeature` + UI CTA
 10. Delete `xmlrpc.js` + `openSubtitlesApi.js` (move to `legacy/` first, then remove in a final commit)
 
+    > [!warning] Status (2026-05-26): PARTIAL
+    > - ✅ `src/services/xmlrpc.js` — **deleted**. Not present on disk;
+    >   `ls src/services/` returns no `xmlrpc.js`. The intermediate
+    >   `src/services/legacy/` directory never materialised either
+    >   (the migration went straight to removal rather than the staged
+    >   move described above).
+    > - ✅ Legacy adapter functions (`adaptLegacyCheckPayload`,
+    >   `adaptLegacyCommitPayload`, `restCheckResponseToLegacy`,
+    >   `restCommitResponseToLegacy`) removed from `src/services/api/upload.js`
+    >   — see the tombstone comment at `upload.js:230-244` ("Phase E step 5,
+    >   2026-05-06").
+    > - ⏳ `src/services/api/openSubtitlesApi.js` — **still on disk**
+    >   (~19 KB, recent mtime). Phase E loose-end; needs to be audited for
+    >   remaining callers, gutted, and removed before Phase 2 closes.
+    >   Treat as the last item on the REST refactor checklist.
+
 Each step lands as an isolated commit — easy to bisect if a regression appears on staging.
 
 ## 12. Existing utilities that stay

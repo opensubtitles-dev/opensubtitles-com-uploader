@@ -3,6 +3,155 @@ import { OpenSubtitlesApiService } from '../services/api/openSubtitlesApi.js';
 import { languagesApi } from '../services/api/languages.js';
 import { retryAsync } from '../utils/retryUtils.js';
 
+// Both /infos/languages and FastText supported-languages return empty `flag`
+// fields, so we provide a fallback mapping from language code to country flag
+// emoji. Codes that don't have an obvious country fall through to the
+// white-flag default.
+const LANGUAGE_FLAGS = {
+  af: '🇿🇦',
+  sq: '🇦🇱',
+  am: '🇪🇹',
+  ar: '🇸🇦',
+  hy: '🇦🇲',
+  as: '🇮🇳',
+  az: '🇦🇿',
+  be: '🇧🇾',
+  bn: '🇧🇩',
+  bs: '🇧🇦',
+  bg: '🇧🇬',
+  my: '🇲🇲',
+  zh: '🇨🇳',
+  'zh-cn': '🇨🇳',
+  'zh-tw': '🇹🇼',
+  hr: '🇭🇷',
+  cs: '🇨🇿',
+  da: '🇩🇰',
+  nl: '🇳🇱',
+  en: '🇬🇧',
+  et: '🇪🇪',
+  fi: '🇫🇮',
+  fr: '🇫🇷',
+  gl: '🇪🇸',
+  ka: '🇬🇪',
+  de: '🇩🇪',
+  el: '🇬🇷',
+  he: '🇮🇱',
+  hi: '🇮🇳',
+  hu: '🇭🇺',
+  is: '🇮🇸',
+  id: '🇮🇩',
+  ga: '🇮🇪',
+  it: '🇮🇹',
+  ja: '🇯🇵',
+  kk: '🇰🇿',
+  km: '🇰🇭',
+  ko: '🇰🇷',
+  ky: '🇰🇬',
+  lo: '🇱🇦',
+  lv: '🇱🇻',
+  lt: '🇱🇹',
+  lb: '🇱🇺',
+  mk: '🇲🇰',
+  ms: '🇲🇾',
+  ml: '🇮🇳',
+  mt: '🇲🇹',
+  mr: '🇮🇳',
+  mn: '🇲🇳',
+  ne: '🇳🇵',
+  no: '🇳🇴',
+  nb: '🇳🇴',
+  nn: '🇳🇴',
+  or: '🇮🇳',
+  fa: '🇮🇷',
+  pl: '🇵🇱',
+  pt: '🇵🇹',
+  'pt-br': '🇧🇷',
+  'pt-pt': '🇵🇹',
+  ps: '🇦🇫',
+  pa: '🇮🇳',
+  ro: '🇷🇴',
+  ru: '🇷🇺',
+  sa: '🇮🇳',
+  sr: '🇷🇸',
+  si: '🇱🇰',
+  sk: '🇸🇰',
+  sl: '🇸🇮',
+  so: '🇸🇴',
+  es: '🇪🇸',
+  sw: '🇰🇪',
+  sv: '🇸🇪',
+  tl: '🇵🇭',
+  tg: '🇹🇯',
+  ta: '🇮🇳',
+  tt: '🇷🇺',
+  te: '🇮🇳',
+  th: '🇹🇭',
+  tr: '🇹🇷',
+  uk: '🇺🇦',
+  ur: '🇵🇰',
+  uz: '🇺🇿',
+  vi: '🇻🇳',
+  cy: '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+  xh: '🇿🇦',
+  yo: '🇳🇬',
+  zu: '🇿🇦',
+  // 3-letter codes some endpoints return
+  eng: '🇬🇧',
+  fre: '🇫🇷',
+  ger: '🇩🇪',
+  spa: '🇪🇸',
+  ita: '🇮🇹',
+  por: '🇵🇹',
+  rus: '🇷🇺',
+  jpn: '🇯🇵',
+  kor: '🇰🇷',
+  chi: '🇨🇳',
+  ara: '🇸🇦',
+  heb: '🇮🇱',
+  tur: '🇹🇷',
+  pol: '🇵🇱',
+  nld: '🇳🇱',
+  dut: '🇳🇱',
+  dan: '🇩🇰',
+  swe: '🇸🇪',
+  nor: '🇳🇴',
+  fin: '🇫🇮',
+  cze: '🇨🇿',
+  ces: '🇨🇿',
+  gre: '🇬🇷',
+  ell: '🇬🇷',
+  hun: '🇭🇺',
+  ron: '🇷🇴',
+  rum: '🇷🇴',
+  slk: '🇸🇰',
+  slo: '🇸🇰',
+  slv: '🇸🇮',
+  bul: '🇧🇬',
+  ukr: '🇺🇦',
+  srp: '🇷🇸',
+  hrv: '🇭🇷',
+  bos: '🇧🇦',
+  vie: '🇻🇳',
+  tha: '🇹🇭',
+  ind: '🇮🇩',
+  may: '🇲🇾',
+  msa: '🇲🇾',
+  hin: '🇮🇳',
+  ben: '🇧🇩',
+  tam: '🇮🇳',
+  tel: '🇮🇳',
+  mar: '🇮🇳',
+  per: '🇮🇷',
+  fas: '🇮🇷',
+  urd: '🇵🇰',
+};
+
+function flagForLangCode(code) {
+  if (!code) return '🏳️';
+  const lc = String(code).toLowerCase();
+  return LANGUAGE_FLAGS[lc] || LANGUAGE_FLAGS[lc.split('-')[0]] || '🏳️';
+}
+
 /**
  * Custom hook for managing language data from two REST sources:
  *
@@ -85,7 +234,7 @@ export const useLanguageData = addDebugInfo => {
         combined[code] = {
           language_code: code,
           displayName: displayLang?.name || lang.language_name,
-          flag: displayLang?.flag || '🏳️',
+          flag: displayLang?.flag || flagForLangCode(code),
           originalName: displayLang?.originalName || '',
           iso639_3: displayLang?.iso639_3 || '',
           canUpload: true,
@@ -100,7 +249,7 @@ export const useLanguageData = addDebugInfo => {
         combined[code] = {
           language_code: code,
           displayName: displayLang.name,
-          flag: displayLang.flag || '🏳️',
+          flag: displayLang.flag || flagForLangCode(code),
           originalName: displayLang.originalName || '',
           iso639_3: displayLang.iso639_3 || '',
           canUpload: false,
@@ -127,24 +276,53 @@ export const useLanguageData = addDebugInfo => {
     setLanguagesLoading(true);
     setLanguagesError(null);
 
-    Promise.all([loadDisplayLanguages(), loadUploadLanguages()])
-      .then(([displayMap, uploadList]) => {
-        if (cancelled) return;
-        combineLanguageData(displayMap, uploadList);
-      })
+    // Fire both loaders independently. They each call setLanguageMap /
+    // setUploadLanguages on success; a separate useEffect re-combines
+    // whenever either piece changes. This means combinedLanguages
+    // populates as soon as the FIRST source resolves, even if the other
+    // hangs forever (previously a hung /infos/languages froze the whole
+    // thing because Promise.allSettled waits for both to settle).
+    let resolvedCount = 0;
+    const markDone = () => {
+      resolvedCount += 1;
+      if (resolvedCount >= 2 && !cancelled) setLanguagesLoading(false);
+    };
+    loadDisplayLanguages()
       .catch(err => {
         if (cancelled) return;
-        debug(`❌ Language load failed: ${err.message}`);
-        setLanguagesError(err.message);
+        // eslint-disable-next-line no-console
+        console.error('[useLanguageData] FastText load failed:', err);
+        debug(`❌ FastText load failed: ${err?.message}`);
       })
-      .finally(() => {
-        if (!cancelled) setLanguagesLoading(false);
-      });
+      .finally(markDone);
+    loadUploadLanguages()
+      .catch(err => {
+        if (cancelled) return;
+        // eslint-disable-next-line no-console
+        console.error('[useLanguageData] /infos/languages load failed:', err);
+        debug(`❌ /infos/languages load failed: ${err?.message}`);
+      })
+      .finally(markDone);
+
+    // Stop the spinner after 8s even if a loader never settles. Whatever
+    // arrived by then is what the picker will use.
+    const spinnerTimeout = setTimeout(() => {
+      if (!cancelled) setLanguagesLoading(false);
+    }, 8000);
 
     return () => {
       cancelled = true;
+      clearTimeout(spinnerTimeout);
     };
-  }, [loadDisplayLanguages, loadUploadLanguages, combineLanguageData, debug]);
+  }, [loadDisplayLanguages, loadUploadLanguages, debug]);
+
+  // Re-combine whenever EITHER source updates. This is the key change vs
+  // the previous Promise.allSettled-then-combine approach: combine no longer
+  // depends on both sources resolving.
+  useEffect(() => {
+    if (Object.keys(languageMap).length === 0 && uploadLanguages.length === 0) return;
+    combineLanguageData(languageMap, uploadLanguages);
+  }, [languageMap, uploadLanguages, combineLanguageData]);
 
   // -------------------------------------------------------------------------
   // Per-subtitle language selection (unchanged from previous version)

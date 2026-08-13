@@ -29,7 +29,7 @@
     "dev": "vite",
     "build": "npm run generate-changelog && vite build",
     "preview": "vite preview",
-    "test": "node --test tests/",
+    "test": "node --test \"tests/**/*.test.js\"",
     "lint": "eslint src --max-warnings=0",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write \"src/**/*.{js,jsx,json,css}\"",

@@ -17,11 +17,26 @@ export const MovieSearch = ({
     movieSearchLoading,
     handleMovieSearch,
     handleMovieSelect,
-    extractImdbId,
     isImdbInput,
+    pendingResolvedFeature,
+    acceptResolvedFeatureGuess,
+    clearPendingResolvedFeature,
   } = useMovieSearch(onMovieChange);
 
   const [stubOpen, setStubOpen] = useState(false);
+  const trimmedSearchQuery = movieSearchQuery.trim();
+  const searchQueryLooksLikeImdbId = isImdbInput(trimmedSearchQuery);
+
+  const movieRequiresConfirmation = movie => {
+    if ((movie?.kind || '').toLowerCase() === 'tvshow') return true;
+    const envelope = movie?._resolveEnvelope;
+    return Boolean(envelope?.found && !(envelope.exists_in_db && envelope.feature_id));
+  };
+
+  const handleSearchResultClick = async movie => {
+    await handleMovieSelect(itemPath, movie);
+    if (!movieRequiresConfirmation(movie)) onClose?.();
+  };
 
   if (!isOpen) return null;
 
@@ -35,11 +50,11 @@ export const MovieSearch = ({
       data-movie-search
     >
       <div className="text-sm mb-2" style={{ color: themeColors.text }}>
-        Search by movie title, IMDB ID, or IMDB URL:
+        Search by movie title, IMDb ID, or IMDb URL:
       </div>
       <input
         type="text"
-        placeholder="Movie title, IMDB ID (tt0133093), or IMDB URL..."
+        placeholder="Movie title, IMDb ID (tt0133093), or IMDb URL..."
         value={movieSearchQuery}
         onChange={e => handleMovieSearch(e.target.value)}
         className="w-full px-3 py-2 text-sm rounded border focus:outline-none focus:ring-2 transition-colors"
@@ -75,7 +90,7 @@ export const MovieSearch = ({
           {movieSearchResults.map((movie, index) => (
             <button
               key={movie.id || index}
-              onClick={() => handleMovieSelect(itemPath, movie)}
+              onClick={() => handleSearchResultClick(movie)}
               disabled={movieUpdateLoading?.[itemPath]}
               className="w-full text-left p-2 rounded text-sm border transition-colors hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
@@ -153,16 +168,28 @@ export const MovieSearch = ({
         </div>
       )}
 
-      {movieSearchQuery && !movieSearchLoading && movieSearchResults.length === 0 && (
-        <div className="mt-2 text-sm text-center py-4 space-y-2" style={{ color: themeColors.textMuted }}>
-          <div>No movies found. Try a different search term.</div>
+      {trimmedSearchQuery && !movieSearchLoading && movieSearchResults.length === 0 && (
+        <div
+          className="mt-2 text-sm text-center py-4 space-y-2"
+          style={{ color: themeColors.textMuted }}
+        >
+          <div>
+            {searchQueryLooksLikeImdbId
+              ? 'No title found for that IMDb ID.'
+              : 'No local database match for that title.'}
+          </div>
+          <div className="text-xs">
+            Create a linked entry by looking it up with an IMDb or TMDb ID first.
+          </div>
           <button
             type="button"
             onClick={() => setStubOpen(true)}
             className="text-sm underline"
             style={{ color: themeColors.primary || themeColors.link }}
           >
-            Movie not in database? Create a new entry →
+            {searchQueryLooksLikeImdbId
+              ? 'Look up/create from this ID →'
+              : 'Look up by IMDb/TMDb ID →'}
           </button>
         </div>
       )}
@@ -174,12 +201,29 @@ export const MovieSearch = ({
 
       {stubOpen && (
         <StubFeatureDialog
-          initialTitle={movieSearchQuery}
-          onCreated={movieGuess => {
+          initialTitle={searchQueryLooksLikeImdbId ? trimmedSearchQuery : ''}
+          manualTitleSuggestion={searchQueryLooksLikeImdbId ? '' : trimmedSearchQuery}
+          preferIdLookup
+          onCreated={async movieGuess => {
             setStubOpen(false);
-            handleMovieSelect(itemPath, movieGuess);
+            await handleMovieSelect(itemPath, movieGuess);
+            onClose?.();
           }}
           onCancel={() => setStubOpen(false)}
+        />
+      )}
+
+      {/* External IMDb/TMDb result not yet in DB → confirm and create it
+          before accepting it as upload-ready. Tvshows also use this path to
+          force an episode pick, so uploads never carry a bare show imdb_id. */}
+      {pendingResolvedFeature && (
+        <StubFeatureDialog
+          initialResolved={pendingResolvedFeature.envelope}
+          onCreated={async movieGuess => {
+            await acceptResolvedFeatureGuess(pendingResolvedFeature.itemPath, movieGuess);
+            onClose?.();
+          }}
+          onCancel={clearPendingResolvedFeature}
         />
       )}
     </div>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
-import { useTheme } from '../../contexts/ThemeContext.jsx';
 import { useMyUploads } from '../../hooks/useMyUploads.js';
 import { UploadHistoryList } from './UploadHistoryList.jsx';
 import { UploadHistoryFilters } from './UploadHistoryFilters.jsx';
@@ -15,9 +15,15 @@ import { ErrorBanner } from '../ErrorBanner.jsx';
  */
 const PAGE_SIZE = 20;
 
+const BackLink = () => (
+  <a href="#/" className="btn btn-ghost btn-sm gap-2" title="Back to uploader">
+    <ArrowLeft className="size-4" />
+    <span>Back to uploader</span>
+  </a>
+);
+
 export default function UploadHistory() {
   const { isAuthenticated, loading: authLoading } = useAuth();
-  const { isDark } = useTheme();
 
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({});
@@ -26,18 +32,15 @@ export default function UploadHistory() {
     page,
     perPage: PAGE_SIZE,
     languageCode: filters.languageCode,
-    enabled: filters.enabled,
+    status: filters.status,
   });
-
-  const containerCls = `min-h-screen ${
-    isDark ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'
-  }`;
 
   if (authLoading) {
     return (
-      <div className={containerCls}>
-        <div className="max-w-4xl mx-auto p-6">
-          <p>Loading…</p>
+      <div className="min-h-screen bg-base-200 p-6">
+        <div className="max-w-4xl mx-auto">
+          <BackLink />
+          <p className="text-base-content/70 mt-6">Loading…</p>
         </div>
       </div>
     );
@@ -45,45 +48,53 @@ export default function UploadHistory() {
 
   if (!isAuthenticated) {
     return (
-      <div className={containerCls}>
-        <div className="max-w-4xl mx-auto p-6 text-center">
-          <h1 className="text-2xl font-bold mb-3">Upload history</h1>
-          <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>
-            Log in to see your upload history.
-          </p>
+      <div className="min-h-screen bg-base-200 p-6">
+        <div className="max-w-4xl mx-auto">
+          <BackLink />
+          <div className="card bg-base-100 shadow-sm mt-4 p-6 text-center">
+            <h1 className="text-2xl font-semibold mb-3 text-base-content">Upload history</h1>
+            <p className="text-base-content/70">Log in to see your upload history.</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={containerCls}>
-      <div className="max-w-4xl mx-auto p-6 space-y-4">
-        <header className="flex items-baseline justify-between gap-4">
-          <h1 className="text-2xl font-bold">Upload history</h1>
+    <div className="min-h-screen bg-base-200 p-6">
+      <div className="max-w-4xl mx-auto space-y-4">
+        <header className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <BackLink />
+            <h1 className="text-2xl font-semibold text-base-content">Upload history</h1>
+          </div>
           {meta?.total_count != null && (
-            <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            <span className="text-sm text-base-content/60">
               {meta.total_count} upload{meta.total_count === 1 ? '' : 's'}
             </span>
           )}
         </header>
 
-        <UploadHistoryFilters
-          value={filters}
-          onChange={next => {
-            setFilters(next);
-            setPage(1);
-          }}
-        />
+        <div className="card bg-base-100 shadow-sm p-4">
+          <UploadHistoryFilters
+            value={filters}
+            onChange={next => {
+              setFilters(next);
+              setPage(1);
+            }}
+          />
+        </div>
 
         {loading ? (
-          <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Loading…</p>
+          <p className="text-base-content/70">Loading…</p>
         ) : error ? (
           <ErrorBanner error={error} onRetry={refetch} />
         ) : data.length === 0 ? (
-          <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>
-            No uploads yet — drop a subtitle on the upload tab to get started.
-          </p>
+          <div className="card bg-base-100 shadow-sm p-6 text-center">
+            <p className="text-base-content/70">
+              No uploads yet — drop a subtitle on the upload tab to get started.
+            </p>
+          </div>
         ) : (
           <>
             <UploadHistoryList items={data} onUpdate={update} onDelete={remove} />
@@ -95,29 +106,17 @@ export default function UploadHistory() {
                 <button
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={meta.page <= 1}
-                  className={`px-3 py-1 rounded ${
-                    meta.page <= 1
-                      ? 'opacity-40'
-                      : isDark
-                        ? 'hover:bg-gray-800'
-                        : 'hover:bg-gray-200'
-                  }`}
+                  className="btn btn-ghost btn-sm"
                 >
                   ← Previous
                 </button>
-                <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>
+                <span className="text-base-content/60">
                   Page {meta.page} of {meta.total_pages}
                 </span>
                 <button
                   onClick={() => setPage(p => Math.min(meta.total_pages, p + 1))}
                   disabled={meta.page >= meta.total_pages}
-                  className={`px-3 py-1 rounded ${
-                    meta.page >= meta.total_pages
-                      ? 'opacity-40'
-                      : isDark
-                        ? 'hover:bg-gray-800'
-                        : 'hover:bg-gray-200'
-                  }`}
+                  className="btn btn-ghost btn-sm"
                 >
                   Next →
                 </button>

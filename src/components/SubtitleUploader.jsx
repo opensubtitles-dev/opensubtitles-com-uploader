@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
-import { Settings, HelpCircle, Sun, Moon, AlertTriangle, Lightbulb } from 'lucide-react';
+import { Settings, HelpCircle, Sun, Moon, AlertTriangle, Lightbulb, History } from 'lucide-react';
 
 // Import logo assets
 import logoWhite from '../assets/os_logo_white_512x512.png';
@@ -628,7 +628,7 @@ function SubtitleUploaderInner() {
   useEffect(() => {
     if (config.defaultFps && orphanedSubtitles.length > 0) {
       const newSubtitles = orphanedSubtitles.filter(
-        subtitle => !orphanedSubtitlesFps.hasOwnProperty(subtitle.fullPath)
+        subtitle => !Object.prototype.hasOwnProperty.call(orphanedSubtitlesFps, subtitle.fullPath)
       );
 
       if (newSubtitles.length > 0) {
@@ -1635,6 +1635,22 @@ function SubtitleUploaderInner() {
           file_kind: fileInfo.file_kind,
         });
 
+        // Start identification before hash/metadata. Hashing large files can
+        // timeout, but that should not block IMDb/feature selection.
+        const status = getProcessingStatus(videoFile.fullPath);
+        if (!status.isProcessing && !status.isComplete && !status.hasFailed) {
+          const delay = 1000 + index * 500;
+
+          setTimeout(() => {
+            const currentStatus = getProcessingStatus(videoFile.fullPath);
+            if (!currentStatus.isProcessing && !currentStatus.isComplete) {
+              processMovieGuess(videoFile).catch(error => {
+                addDebugInfo(`Movie guess failed: ${error.message}`);
+              });
+            }
+          }, delay);
+        }
+
         // Calculate movie hash with timeout and retry
         try {
           addDebugInfo(
@@ -1688,21 +1704,6 @@ function SubtitleUploaderInner() {
         } catch (metadataError) {
           console.error(`Video metadata extraction error for ${videoFile.name}:`, metadataError);
           addDebugInfo(`❌ Video metadata extraction failed: ${metadataError.message}`);
-        }
-
-        // Check if movie guess is needed
-        const status = getProcessingStatus(videoFile.fullPath);
-        if (!status.isProcessing && !status.isComplete && !status.hasFailed) {
-          const delay = 1000 + index * 500;
-
-          setTimeout(() => {
-            const currentStatus = getProcessingStatus(videoFile.fullPath);
-            if (!currentStatus.isProcessing && !currentStatus.isComplete) {
-              processMovieGuess(videoFile).catch(error => {
-                addDebugInfo(`Movie guess failed: ${error.message}`);
-              });
-            }
-          }, delay);
         }
 
         // GuessIt processing will be handled automatically when movie guess completes
@@ -2487,6 +2488,14 @@ function SubtitleUploaderInner() {
             <div className="flex flex-col items-end gap-2 shrink-0">
               <UserProfile />
               <div className="flex items-center gap-1">
+                <a
+                  href="#/history"
+                  className="btn btn-ghost btn-sm gap-2"
+                  title="View upload history"
+                >
+                  <History className="size-4" />
+                  <span className="hidden sm:inline">History</span>
+                </a>
                 <button
                   type="button"
                   onClick={handleConfigToggle}

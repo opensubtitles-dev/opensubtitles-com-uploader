@@ -2,6 +2,7 @@ import { uploadApi } from './api/upload.js';
 import { SubtitleHashService } from './subtitleHash.js';
 import { HD_DETECTION_REGEX } from '../utils/constants.js';
 import { cleanReleaseName } from '../utils/releaseNameUtils.js';
+import { buildUploadTarget, describeUploadTarget } from '../utils/uploadTarget.js';
 
 /**
  * Service for uploading subtitles to OpenSubtitles
@@ -112,145 +113,170 @@ export class SubtitleUploadService {
           for (const subtitle of sortedSubtitles) {
             addDebugInfo(`📤 Attempting upload for subtitle: ${subtitle.name}`);
 
-            const uploadData = await this.prepareUploadDataForSingleSubtitle({
-              video,
-              subtitle,
-              movieData,
-              guessItData,
-              featuresByImdbId,
-              getSubtitleLanguage,
-              uploadOptions,
-              combinedLanguages,
-              addDebugInfo,
-              getVideoMetadata,
-            });
+            try {
+              const uploadData = await this.prepareUploadDataForSingleSubtitle({
+                video,
+                subtitle,
+                movieData,
+                guessItData,
+                featuresByImdbId,
+                getSubtitleLanguage,
+                uploadOptions,
+                combinedLanguages,
+                addDebugInfo,
+                getVideoMetadata,
+              });
 
-            // Phase E step 4 — REST-native: payload flat, response read
-            // directly from REST envelope (no legacy translator).
-            const tryUploadResponse = await uploadApi.check(uploadData, {
-              anonymous: config.uploadAsAnonymous === true,
-            });
+              // Phase E step 4 — REST-native: payload flat, response read
+              // directly from REST envelope (no legacy translator).
+              const tryUploadResponse = await uploadApi.check(uploadData, {
+                anonymous: config.uploadAsAnonymous === true,
+              });
 
-            addDebugInfo(`✅ TryUpload response received for ${subtitle.name}:`);
-            addDebugInfo(JSON.stringify(tryUploadResponse, null, 2));
+              addDebugInfo(`✅ TryUpload response received for ${subtitle.name}:`);
+              addDebugInfo(JSON.stringify(tryUploadResponse, null, 2));
 
-            let finalResponse = tryUploadResponse;
-            let actualUploadData = null;
-            let actualUploadResponse = null;
+              let finalResponse = tryUploadResponse;
+              let actualUploadData = null;
+              let actualUploadResponse = null;
 
-            // If not already in DB, need to do actual upload (REST commit)
-            if (tryUploadResponse.already_in_db === false) {
-              // Check if uploadMovieHashOnly is enabled
-              if (config.uploadMovieHashOnly === true) {
-                addDebugInfo(
-                  `⚙️ Upload MovieHash Only mode enabled - skipping commit for ${subtitle.name}`
-                );
-                addDebugInfo(
-                  `✅ Movie hash updated for ${subtitle.name}, subtitle file not uploaded`
-                );
-                // Reuse the check response, mark as hash-only success.
-                finalResponse = {
-                  ...tryUploadResponse,
-                  hashOnlyMode: true,
-                };
+              // If not already in DB, need to do actual upload (REST commit)
+              if (tryUploadResponse.already_in_db === false) {
+                // Check if uploadMovieHashOnly is enabled
+                if (config.uploadMovieHashOnly === true) {
+                  addDebugInfo(
+                    `⚙️ Upload MovieHash Only mode enabled - skipping commit for ${subtitle.name}`
+                  );
+                  addDebugInfo(
+                    `✅ Movie hash updated for ${subtitle.name}, subtitle file not uploaded`
+                  );
+                  // Reuse the check response, mark as hash-only success.
+                  finalResponse = {
+                    ...tryUploadResponse,
+                    hashOnlyMode: true,
+                  };
+                } else {
+                  addDebugInfo(
+                    `📤 Subtitle not in database, proceeding with UploadSubtitles for ${subtitle.name}`
+                  );
+
+                  actualUploadData = await this.prepareActualUploadData({
+                    video,
+                    subtitle,
+                    movieData,
+                    guessItData,
+                    featuresByImdbId,
+                    getSubtitleLanguage,
+                    uploadOptions,
+                    combinedLanguages,
+                    addDebugInfo,
+                    getVideoMetadata,
+                  });
+
+                  // Phase E step 4 — REST-native: payload flat, response read
+                  // directly from REST envelope (no legacy translator).
+                  actualUploadResponse = await uploadApi.commit(actualUploadData, {
+                    anonymous: config.uploadAsAnonymous === true,
+                  });
+
+                  addDebugInfo(`✅ UploadSubtitles response received for ${subtitle.name}:`);
+                  addDebugInfo(JSON.stringify(actualUploadResponse, null, 2));
+
+                  finalResponse = actualUploadResponse;
+                }
               } else {
                 addDebugInfo(
-                  `📤 Subtitle not in database, proceeding with UploadSubtitles for ${subtitle.name}`
+                  `✅ Subtitle already in database for ${subtitle.name} (duplicate_of=${tryUploadResponse.duplicate_of})`
                 );
-
-                actualUploadData = await this.prepareActualUploadData({
-                  video,
-                  subtitle,
-                  movieData,
-                  guessItData,
-                  featuresByImdbId,
-                  getSubtitleLanguage,
-                  uploadOptions,
-                  combinedLanguages,
-                  addDebugInfo,
-                  getVideoMetadata,
-                });
-
-                // Phase E step 4 — REST-native: payload flat, response read
-                // directly from REST envelope (no legacy translator).
-                actualUploadResponse = await uploadApi.commit(actualUploadData, {
-                  anonymous: config.uploadAsAnonymous === true,
-                });
-
-                addDebugInfo(`✅ UploadSubtitles response received for ${subtitle.name}:`);
-                addDebugInfo(JSON.stringify(actualUploadResponse, null, 2));
-
-                finalResponse = actualUploadResponse;
               }
-            } else {
-              addDebugInfo(
-                `✅ Subtitle already in database for ${subtitle.name} (duplicate_of=${tryUploadResponse.duplicate_of})`
-              );
-            }
 
-            subtitleResults.push({
-              subtitle: subtitle.name,
-              subtitlePath: subtitle.fullPath,
-              response: finalResponse,
-              // Include the exact subcontent that was sent for debugging (only if actual upload happened)
-              subcontent: actualUploadData ? actualUploadData.subcontent : null,
-            });
-
-            results.processedSubtitles++;
-
-            // Phase E step 4 — classify against the REST envelope.
-            //   - hashOnlyMode → success (synthesized when upload was skipped)
-            //   - already_in_db (check response) → exists
-            //   - subtitle_id (commit response) → success, possibly with download_url
-            //   - else → unknown (defensive; shouldn't happen)
-            const response = finalResponse;
-            let status = 'unknown';
-            let message = 'Upload completed';
-            let url = null;
-
-            if (response.hashOnlyMode) {
-              status = 'success';
-              message = 'Movie hash updated (subtitle not uploaded)';
-              results.successful++;
-            } else if (response.already_in_db === true) {
-              status = 'exists';
-              message = 'Already in database';
-              results.alreadyExists++;
-              // /check doesn't return a download_url; duplicate_of is the existing subtitle_id.
-              url = null;
-            } else if (response.subtitle_id) {
-              // Commit response — server accepted the upload.
-              status = 'success';
-              message =
-                response.status === 'flagged_for_review'
-                  ? 'Uploaded — flagged for review'
-                  : 'Successfully uploaded as new subtitle';
-              results.successful++;
-              url = response.download_url || null;
-            } else {
-              // Defensive fallback (e.g. non-2xx slipped through somehow).
-              results.successful++;
-              status = 'success';
-              message = 'Upload completed';
-            }
-
-            // Add to detailed results
-            results.detailedResults.push({
-              filename: subtitle.name,
-              status,
-              message,
-              url,
-            });
-
-            // Update progress with detailed information
-            if (onProgress) {
-              onProgress(results.processedSubtitles, results.totalSubtitles, {
-                currentSubtitle: subtitle.name,
-                successful: results.successful,
-                alreadyExists: results.alreadyExists,
-                failed: results.failed,
-                results: results.detailedResults,
+              subtitleResults.push({
+                subtitle: subtitle.name,
+                subtitlePath: subtitle.fullPath,
+                response: finalResponse,
+                // Include the exact subcontent that was sent for debugging (only if actual upload happened)
+                subcontent: actualUploadData ? actualUploadData.subcontent : null,
               });
+
+              results.processedSubtitles++;
+
+              // Phase E step 4 — classify against the REST envelope.
+              //   - hashOnlyMode → success (synthesized when upload was skipped)
+              //   - already_in_db (check response) → exists
+              //   - subtitle_id (commit response) → success, possibly with download_url
+              //   - else → unknown (defensive; shouldn't happen)
+              const response = finalResponse;
+              let status = 'unknown';
+              let message = 'Upload completed';
+              let url = null;
+
+              if (response.hashOnlyMode) {
+                status = 'success';
+                message = 'Movie hash updated (subtitle not uploaded)';
+                results.successful++;
+              } else if (response.already_in_db === true) {
+                status = 'exists';
+                message = 'Already in database';
+                results.alreadyExists++;
+                // /check doesn't return a download_url; duplicate_of is the existing subtitle_id.
+                url = null;
+              } else if (response.subtitle_id) {
+                // Commit response — server accepted the upload.
+                status = 'success';
+                message =
+                  response.status === 'flagged_for_review'
+                    ? 'Uploaded — flagged for review'
+                    : 'Successfully uploaded as new subtitle';
+                results.successful++;
+                url = response.download_url || null;
+              } else {
+                // Defensive fallback (e.g. non-2xx slipped through somehow).
+                results.successful++;
+                status = 'success';
+                message = 'Upload completed';
+              }
+
+              // Add to detailed results
+              results.detailedResults.push({
+                filename: subtitle.name,
+                status,
+                message,
+                url,
+              });
+
+              // Update progress with detailed information
+              if (onProgress) {
+                onProgress(results.processedSubtitles, results.totalSubtitles, {
+                  currentSubtitle: subtitle.name,
+                  successful: results.successful,
+                  alreadyExists: results.alreadyExists,
+                  failed: results.failed,
+                  results: results.detailedResults,
+                });
+              }
+            } catch (subError) {
+              // Isolate per-subtitle failures so one bad row (e.g. 400
+              // "Unknown language code") doesn't cascade onto siblings
+              // via the video-group catch below.
+              addDebugInfo(`❌ Upload failed for ${subtitle.name}: ${subError.message}`);
+              results.processedSubtitles++;
+              results.failed++;
+              results.detailedResults.push({
+                filename: subtitle.name,
+                status: 'failed',
+                message: `Upload failed: ${subError.message}`,
+                url: null,
+                errorType: subError.name,
+              });
+              if (onProgress) {
+                onProgress(results.processedSubtitles, results.totalSubtitles, {
+                  currentSubtitle: subtitle.name,
+                  successful: results.successful,
+                  alreadyExists: results.alreadyExists,
+                  failed: results.failed,
+                  results: results.detailedResults,
+                });
+              }
             }
           }
 
@@ -581,13 +607,10 @@ export class SubtitleUploadService {
       featuresByImdbId,
       guessItData
     );
-    const uploadImdbId =
-      bestMovieData?.kind === 'episode' && bestMovieData.imdbid
-        ? bestMovieData.imdbid
-        : movieData.imdbid;
+    const uploadTarget = buildUploadTarget(movieData, bestMovieData);
 
     addDebugInfo(
-      `🎭 Using IMDb ID for upload: ${uploadImdbId} (${bestMovieData?.kind || 'movie'})`
+      `🎭 Using upload target: ${describeUploadTarget(uploadTarget)} (${bestMovieData?.kind || 'movie'})`
     );
     addDebugInfo(`📝 Processing subtitle: ${subtitle.name}`);
 
@@ -599,6 +622,9 @@ export class SubtitleUploadService {
       if (!video.movieHash || video.movieHash === 'error') {
         throw new Error(`Movie hash not available for video: ${video.name}`);
       }
+      if (!uploadTarget.hasTarget) {
+        throw new Error(`Movie identifier not available for video: ${video.name}`);
+      }
 
       // Get video metadata for upload parameters
       const videoMetadata = getVideoMetadata ? getVideoMetadata(video.fullPath) : null;
@@ -609,7 +635,7 @@ export class SubtitleUploadService {
         moviehash: video.movieHash, // Movie hash from video file
         moviebytesize: video.size.toString(),
         moviefilename: video.name,
-        idmovieimdb: uploadImdbId,
+        ...uploadTarget.payload,
 
         // Add video metadata parameters for TryUploadSubtitles
         ...(videoMetadata && {
@@ -621,7 +647,7 @@ export class SubtitleUploadService {
 
       addDebugInfo(`✅ Prepared subtitle data for: ${subtitle.name}`);
       addDebugInfo(`   - Movie hash: ${video.movieHash}`);
-      addDebugInfo(`   - IMDb ID: ${uploadImdbId}`);
+      addDebugInfo(`   - Upload target: ${describeUploadTarget(uploadTarget)}`);
       if (videoMetadata) {
         addDebugInfo(
           `   - Video metadata: FPS=${videoMetadata.moviefps}, Duration=${videoMetadata.movietimems}ms, Frames=${videoMetadata.movieframes}`
@@ -665,13 +691,10 @@ export class SubtitleUploadService {
       featuresByImdbId,
       guessItData
     );
-    const uploadImdbId =
-      bestMovieData?.kind === 'episode' && bestMovieData.imdbid
-        ? bestMovieData.imdbid
-        : movieData.imdbid;
+    const uploadTarget = buildUploadTarget(movieData, bestMovieData);
 
     addDebugInfo(
-      `🎭 Using IMDb ID for actual upload: ${uploadImdbId} (${bestMovieData?.kind || 'movie'})`
+      `🎭 Using upload target for actual upload: ${describeUploadTarget(uploadTarget)} (${bestMovieData?.kind || 'movie'})`
     );
     addDebugInfo(`📝 Processing subtitle for actual upload: ${subtitle.name}`);
 
@@ -690,6 +713,9 @@ export class SubtitleUploadService {
       // Validate required fields
       if (!video.movieHash || video.movieHash === 'error') {
         throw new Error(`Movie hash not available for video: ${video.name}`);
+      }
+      if (!uploadTarget.hasTarget) {
+        throw new Error(`Movie identifier not available for video: ${video.name}`);
       }
 
       // Get subtitle-specific upload options
@@ -780,7 +806,7 @@ export class SubtitleUploadService {
         moviehash: video.movieHash,
         moviebytesize: video.size.toString(),
         moviefilename: video.name,
-        idmovieimdb: uploadImdbId,
+        ...uploadTarget.payload,
         sublanguageid: languageId,
 
         // Optional video metadata
@@ -804,7 +830,7 @@ export class SubtitleUploadService {
       addDebugInfo(`✅ Prepared actual upload data for: ${subtitle.name}`);
       addDebugInfo(`   - Language: ${languageId}`);
       addDebugInfo(`   - Movie hash: ${video.movieHash}`);
-      addDebugInfo(`   - IMDb ID: ${uploadImdbId}`);
+      addDebugInfo(`   - Upload target: ${describeUploadTarget(uploadTarget)}`);
       addDebugInfo(`   - Content length: ${subtitleInfo.content.length} chars`);
       addDebugInfo(
         `   - Compressed content length: ${subtitleInfo.contentGzipBase64.length} chars (base64)`
@@ -878,25 +904,26 @@ export class SubtitleUploadService {
       featuresByImdbId,
       guessItData
     );
-    const uploadImdbId =
-      bestMovieData?.kind === 'episode' && bestMovieData.imdbid
-        ? bestMovieData.imdbid
-        : movieData.imdbid;
+    const uploadTarget = buildUploadTarget(movieData, bestMovieData);
 
     addDebugInfo(
-      `🎭 Using IMDb ID for orphaned subtitle upload: ${uploadImdbId} (${bestMovieData?.kind || 'movie'})`
+      `🎭 Using upload target for orphaned subtitle check: ${describeUploadTarget(uploadTarget)} (${bestMovieData?.kind || 'movie'})`
     );
     addDebugInfo(`📝 Processing orphaned subtitle: ${subtitle.name}`);
 
     try {
       // Calculate MD5 hash of subtitle file
       const subtitleInfo = await SubtitleHashService.readAndHashSubtitleFile(subtitle.file);
+      if (!uploadTarget.hasTarget) {
+        throw new Error(`Movie identifier not available for orphaned subtitle: ${subtitle.name}`);
+      }
 
       const subtitleEntry = {
         subhash: subtitleInfo.hash, // MD5 hash of subtitle file content
         subfilename: subtitle.name,
-        // For orphaned subtitles, we don't include movie fields or idmovieimdb in TryUploadSubtitles
-        // moviehash, moviebytesize, moviefilename, and idmovieimdb are not sent
+        ...uploadTarget.payload,
+        // For orphaned subtitles, we don't include movie file fields.
+        // moviehash, moviebytesize, and moviefilename are not sent.
       };
 
       // Get FPS setting for this subtitle
@@ -911,8 +938,8 @@ export class SubtitleUploadService {
       }
 
       addDebugInfo(`✅ Prepared orphaned subtitle data for: ${subtitle.name}`);
-      addDebugInfo(`   - No movie fields included (orphaned subtitle for TryUploadSubtitles)`);
-      addDebugInfo(`   - IMDb ID will be used later in UploadSubtitles: ${uploadImdbId}`);
+      addDebugInfo(`   - Upload target: ${describeUploadTarget(uploadTarget)}`);
+      addDebugInfo(`   - No movie file fields included (orphaned subtitle for check)`);
 
       // Phase E step 3 (2026-05-06) — REST-flat shape, mirror of step 1.
       return subtitleEntry;
@@ -946,13 +973,10 @@ export class SubtitleUploadService {
       featuresByImdbId,
       guessItData
     );
-    const uploadImdbId =
-      bestMovieData?.kind === 'episode' && bestMovieData.imdbid
-        ? bestMovieData.imdbid
-        : movieData.imdbid;
+    const uploadTarget = buildUploadTarget(movieData, bestMovieData);
 
     addDebugInfo(
-      `🎭 Using IMDb ID for orphaned subtitle actual upload: ${uploadImdbId} (${bestMovieData?.kind || 'movie'})`
+      `🎭 Using upload target for orphaned subtitle actual upload: ${describeUploadTarget(uploadTarget)} (${bestMovieData?.kind || 'movie'})`
     );
     addDebugInfo(`📝 Processing orphaned subtitle for actual upload: ${subtitle.name}`);
 
@@ -966,6 +990,9 @@ export class SubtitleUploadService {
 
       if (!languageId) {
         throw new Error(`No valid language ID found for orphaned subtitle: ${subtitle.name}`);
+      }
+      if (!uploadTarget.hasTarget) {
+        throw new Error(`Movie identifier not available for orphaned subtitle: ${subtitle.name}`);
       }
 
       // Get subtitle-specific upload options
@@ -1027,7 +1054,7 @@ export class SubtitleUploadService {
         subhash: subtitleInfo.hash,
         subfilename: subtitle.name,
         subcontent: subtitleInfo.contentGzipBase64,
-        idmovieimdb: uploadImdbId,
+        ...uploadTarget.payload,
         sublanguageid: languageId,
 
         // Optional FPS (orphan can supply this without movie file)
@@ -1052,7 +1079,7 @@ export class SubtitleUploadService {
 
       addDebugInfo(`✅ Prepared actual upload data for orphaned subtitle: ${subtitle.name}`);
       addDebugInfo(`   - Language: ${languageId}`);
-      addDebugInfo(`   - IMDb ID: ${uploadImdbId}`);
+      addDebugInfo(`   - Upload target: ${describeUploadTarget(uploadTarget)}`);
       addDebugInfo(`   - Content length: ${subtitleInfo.content.length} chars`);
       addDebugInfo(
         `   - Compressed content length: ${subtitleInfo.contentGzipBase64.length} chars (base64)`
