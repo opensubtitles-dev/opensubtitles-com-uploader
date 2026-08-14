@@ -1,16 +1,12 @@
-import { normalizeBaseUrl, DEFAULT_BASE_URL } from './normalizeBaseUrl.js';
+import { getActiveEnvironment, getActiveEnvironmentId } from '../config/environments.js';
 
 // Application version - updated manually to match package.json
 export const APP_VERSION = '2.0.0';
 
-// API Configuration - embedded keys take priority over environment variables
-// Global __EMBEDDED_OPENSUBTITLES_API_KEY__ is defined by Vite at build time
-export const OPENSUBTITLES_COM_API_KEY =
-  typeof __EMBEDDED_OPENSUBTITLES_API_KEY__ !== 'undefined' && __EMBEDDED_OPENSUBTITLES_API_KEY__
-    ? __EMBEDDED_OPENSUBTITLES_API_KEY__
-    : typeof import.meta !== 'undefined' && import.meta.env
-      ? import.meta.env.VITE_OPENSUBTITLES_API_KEY || ''
-      : '';
+// API key and base URL both come from the active environment — see
+// src/config/environments.js. Resolved once at module load; switching
+// environments reloads the window, so these constants stay valid.
+export const OPENSUBTITLES_COM_API_KEY = getActiveEnvironment().apiKey;
 
 // API base URL — overridable via VITE_OPENSUBTITLES_BASE_URL for local
 // development against a Rails dev server. Defaults to production .com.
@@ -27,11 +23,7 @@ export const OPENSUBTITLES_COM_API_KEY =
 // with config/environments.js. Re-exported here for backwards compatibility.
 export { DEFAULT_BASE_URL, normalizeBaseUrl } from './normalizeBaseUrl.js';
 
-export const OPENSUBTITLES_BASE_URL = normalizeBaseUrl(
-  typeof import.meta !== 'undefined' && import.meta.env
-    ? import.meta.env.VITE_OPENSUBTITLES_BASE_URL
-    : null
-);
+export const OPENSUBTITLES_BASE_URL = getActiveEnvironment().baseUrl;
 
 // User Agent for all API requests
 export const USER_AGENT = `OpenSubtitles Uploader PRO v${APP_VERSION}`;
@@ -50,24 +42,21 @@ export const getApiHeaders = (contentType = 'application/json', additionalHeader
   };
 };
 
-// Validate API configuration. Also logs the active base URL — useful when
-// pointing the dev build at staging or localhost.
 export const validateApiConfiguration = () => {
   const errors = [];
+  const envId = getActiveEnvironmentId();
 
   if (!OPENSUBTITLES_COM_API_KEY) {
-    errors.push('VITE_OPENSUBTITLES_API_KEY is not set. Please check your .env file.');
-  }
-
-  // Always log the active base URL so devs can confirm a non-default config
-  const isDefault = OPENSUBTITLES_BASE_URL === DEFAULT_BASE_URL;
-  if (isDefault) {
-    console.log(`🌐 API base URL: ${OPENSUBTITLES_BASE_URL} (production)`);
-  } else {
-    console.log(
-      `🌐 API base URL: ${OPENSUBTITLES_BASE_URL}  ⚠ overridden via VITE_OPENSUBTITLES_BASE_URL`
+    errors.push(
+      `No API key for the "${envId}" environment. Set VITE_OPENSUBTITLES_API_KEY_${envId.toUpperCase()} in .env (see .env.example).`
     );
   }
+
+  if (!OPENSUBTITLES_BASE_URL) {
+    errors.push(`No base URL configured for the "${envId}" environment.`);
+  }
+
+  console.log(`🌐 API environment: ${envId} → ${OPENSUBTITLES_BASE_URL}`);
 
   if (errors.length > 0) {
     console.error('⚠️ API Configuration Issues:');

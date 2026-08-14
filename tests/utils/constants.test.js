@@ -31,10 +31,7 @@ describe('normalizeBaseUrl', () => {
   });
 
   test('preserves an existing /api/vN suffix', () => {
-    assert.equal(
-      normalizeBaseUrl('http://localhost:3001/api/v1'),
-      'http://localhost:3001/api/v1'
-    );
+    assert.equal(normalizeBaseUrl('http://localhost:3001/api/v1'), 'http://localhost:3001/api/v1');
     assert.equal(normalizeBaseUrl('https://x.com/api/v2'), 'https://x.com/api/v2');
     assert.equal(normalizeBaseUrl('https://x.com/api/v10'), 'https://x.com/api/v10');
   });
@@ -42,10 +39,7 @@ describe('normalizeBaseUrl', () => {
   test('strips trailing slash(es)', () => {
     assert.equal(normalizeBaseUrl('http://localhost:3001/'), 'http://localhost:3001/api/v1');
     assert.equal(normalizeBaseUrl('http://localhost:3001//'), 'http://localhost:3001/api/v1');
-    assert.equal(
-      normalizeBaseUrl('http://localhost:3001/api/v1/'),
-      'http://localhost:3001/api/v1'
-    );
+    assert.equal(normalizeBaseUrl('http://localhost:3001/api/v1/'), 'http://localhost:3001/api/v1');
   });
 
   test('trims surrounding whitespace', () => {
@@ -63,5 +57,22 @@ describe('normalizeBaseUrl', () => {
     // 'foo.com/api' is unusual but should get the /v1 appended (becomes /api/api/v1)
     // Document the actual behavior so future changes are intentional.
     assert.equal(normalizeBaseUrl('https://foo.com/api'), 'https://foo.com/api/api/v1');
+  });
+});
+
+import { getActiveEnvironment } from '../../src/config/environments.js';
+import { OPENSUBTITLES_BASE_URL, API_ENDPOINTS } from '../../src/utils/constants.js';
+
+describe('active environment wiring', () => {
+  test('base URL matches the active environment', () => {
+    assert.equal(OPENSUBTITLES_BASE_URL, getActiveEnvironment().baseUrl);
+  });
+
+  test('every endpoint is derived from the active base URL', () => {
+    assert.ok(API_ENDPOINTS.FEATURES.startsWith(OPENSUBTITLES_BASE_URL));
+    assert.ok(API_ENDPOINTS.GUESSIT.startsWith(OPENSUBTITLES_BASE_URL));
+    assert.ok(API_ENDPOINTS.LANGUAGE_DETECTION.startsWith(OPENSUBTITLES_BASE_URL));
+    assert.ok(API_ENDPOINTS.SUPPORTED_LANGUAGES.startsWith(OPENSUBTITLES_BASE_URL));
+    assert.equal(API_ENDPOINTS.OPENSUBTITLES_REST, OPENSUBTITLES_BASE_URL);
   });
 });
