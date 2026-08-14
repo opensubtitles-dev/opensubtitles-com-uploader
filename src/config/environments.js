@@ -1,0 +1,137 @@
+import { normalizeBaseUrl, DEFAULT_BASE_URL } from '../utils/normalizeBaseUrl.js';
+
+/**
+ * Backend environment registry.
+ *
+ * The uploader can talk to exactly two backends: production, and the dev
+ * server exposed through a stable ngrok subdomain. The switch that selects
+ * between them ships ONLY in dev/test builds — see SWITCH_ENABLED.
+ *
+ * This module owns the 'osdb_backend' storage key. utils/storageKeys.js
+ * imports FROM here, never the other way around.
+ *
+ * Design: docs/superpowers/specs/2026-08-14-env-switch-design.md
+ */
+
+export const BACKEND_PREF_KEY = 'osdb_backend';
+
+const readEnv = name => {
+  if (typeof import.meta === 'undefined' || !import.meta.env) return '';
+  return import.meta.env[name] || '';
+};
+
+// Compile-time globals (vite `define`), with import.meta.env fallbacks for
+// the dev server. Mirrors the pattern already used for the API key.
+const PROD_KEY =
+  typeof __EMBEDDED_OPENSUBTITLES_API_KEY_PROD__ !== 'undefined' &&
+  __EMBEDDED_OPENSUBTITLES_API_KEY_PROD__
+    ? __EMBEDDED_OPENSUBTITLES_API_KEY_PROD__
+    : readEnv('VITE_OPENSUBTITLES_API_KEY_PROD');
+
+// The legacy single-key variable is accepted as a fallback for DEV only —
+// that is what it holds in existing .env files. It is deliberately NOT a
+// fallback for the prod key: a silently wrong key against prod Kong is
+// worse than a loud startup error.
+const DEV_KEY =
+  typeof __EMBEDDED_OPENSUBTITLES_API_KEY_DEV__ !== 'undefined' &&
+  __EMBEDDED_OPENSUBTITLES_API_KEY_DEV__
+    ? __EMBEDDED_OPENSUBTITLES_API_KEY_DEV__
+    : readEnv('VITE_OPENSUBTITLES_API_KEY_DEV') || readEnv('VITE_OPENSUBTITLES_API_KEY');
+
+const DEV_BASE_URL_RAW = readEnv('VITE_OPENSUBTITLES_BASE_URL');
+
+export const SWITCH_ENABLED =
+  (typeof __ENV_SWITCH_ENABLED__ !== 'undefined' && __ENV_SWITCH_ENABLED__ === 'true') ||
+  readEnv('VITE_ENV_SWITCH') === 'true';
+
+export const ENVIRONMENTS = Object.freeze({
+  prod: Object.freeze({
+    id: 'prod',
+    label: 'Production',
+    baseUrl: DEFAULT_BASE_URL,
+    apiKey: PROD_KEY,
+  }),
+  dev: Object.freeze({
+    id: 'dev',
+    label: 'Dev (ngrok)',
+    baseUrl: DEV_BASE_URL_RAW ? normalizeBaseUrl(DEV_BASE_URL_RAW) : '',
+    apiKey: DEV_KEY,
+  }),
+});
+
+const VALID_IDS = Object.freeze(['prod', 'dev']);
+
+/**
+ * Pure resolver — exported for tests.
+ *
+ * The gating invariant: when the switch is disabled, this ALWAYS returns
+ * 'prod', whatever storage says. A public build must never be dragged onto
+ * the dev backend by a leftover preference from a tester build.
+ *
+ * @param {Storage|null} storage
+ * @param {boolean} switchEnabled
+ * @returns {'prod'|'dev'}
+ */
+export function resolveEnvironmentId(storage, switchEnabled) {
+  if (!switchEnabled) return 'prod';
+  const fallback = 'dev';
+  if (!storage || typeof storage.getItem !== 'function') return fallback;
+  let stored = null;
+  try {
+    stored = storage.getItem(BACKEND_PREF_KEY);
+  } catch {
+    return fallback;
+  }
+  return VALID_IDS.includes(stored) ? stored : fallback;
+}
+
+/**
+ * Pure list builder — exported for tests.
+ * @returns {Array<object>} prod first, then dev when it is configured
+ */
+export function buildSelectableList(switchEnabled, environments) {
+  if (!switchEnabled) return [];
+  return VALID_IDS.map(id => environments[id]).filter(env => env && env.baseUrl);
+}
+
+const defaultStorage = () =>
+  typeof globalThis !== 'undefined' && globalThis.localStorage ? globalThis.localStorage : null;
+
+export function getActiveEnvironmentId(storage = defaultStorage()) {
+  return resolveEnvironmentId(storage, SWITCH_ENABLED);
+}
+
+export function getActiveEnvironment(storage = defaultStorage()) {
+  return ENVIRONMENTS[getActiveEnvironmentId(storage)];
+}
+
+export function listSelectableEnvironments() {
+  return buildSelectableList(SWITCH_ENABLED, ENVIRONMENTS);
+}
+
+/**
+ * Persist the choice and reload so every module re-resolves the backend.
+ *
+ * @param {'prod'|'dev'} id
+ * @param {{storage?: Storage, reload?: Function}} deps injectable for tests
+ * @returns {boolean} true when a reload was triggered
+ */
+export function setActiveEnvironment(id, deps = {}) {
+  const storage = deps.storage ?? defaultStorage();
+  const reload =
+    deps.reload ??
+    (() => {
+      if (typeof window !== 'undefined') window.location.reload();
+    });
+
+  if (!VALID_IDS.includes(id) || !SWITCH_ENABLED) return false;
+  if (getActiveEnvironmentId(storage) === id) return false;
+
+  try {
+    storage?.setItem(BACKEND_PREF_KEY, id);
+  } catch {
+    return false;
+  }
+  reload();
+  return true;
+}
