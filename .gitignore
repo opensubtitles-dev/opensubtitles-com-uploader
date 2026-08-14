@@ -73,7 +73,12 @@ coverage/
 
 # Tauri build artifacts
 src-tauri/target/
-src-tauri/Cargo.locksrc/utils/embeddedConstants.js
+
+# Generated at build time by scripts/embed-api-keys.js — carries API keys
+src/utils/embeddedConstants.js
+
+# Subagent-driven-development scratch workspace
+.superpowers/
 
 # Obsidian vault settings (per-user)
 .obsidian/
