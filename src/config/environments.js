@@ -113,19 +113,20 @@ export function listSelectableEnvironments() {
  * Persist the choice and reload so every module re-resolves the backend.
  *
  * @param {'prod'|'dev'} id
- * @param {{storage?: Storage, reload?: Function}} deps injectable for tests
+ * @param {{storage?: Storage, reload?: Function, switchEnabled?: boolean}} deps injectable for tests
  * @returns {boolean} true when a reload was triggered
  */
 export function setActiveEnvironment(id, deps = {}) {
   const storage = deps.storage ?? defaultStorage();
+  const switchEnabled = deps.switchEnabled ?? SWITCH_ENABLED;
   const reload =
     deps.reload ??
     (() => {
       if (typeof window !== 'undefined') window.location.reload();
     });
 
-  if (!VALID_IDS.includes(id) || !SWITCH_ENABLED) return false;
-  if (getActiveEnvironmentId(storage) === id) return false;
+  if (!VALID_IDS.includes(id) || !switchEnabled) return false;
+  if (resolveEnvironmentId(storage, switchEnabled) === id) return false;
 
   try {
     storage?.setItem(BACKEND_PREF_KEY, id);

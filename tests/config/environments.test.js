@@ -99,6 +99,7 @@ describe('setActiveEnvironment', () => {
     let reloadCalled = false;
     const result = setActiveEnvironment('staging', {
       storage,
+      switchEnabled: true,
       reload: () => {
         reloadCalled = true;
       },
@@ -108,48 +109,76 @@ describe('setActiveEnvironment', () => {
     assert.equal(storage.getItem(BACKEND_PREF_KEY), null);
   });
 
-  test('returns false when switch is disabled (gating invariant)', () => {
+  test('selects a different environment when switch enabled', () => {
+    // Empty storage with switchEnabled:true means current env is 'dev' (the default)
+    // So we select 'prod' to change to a different environment
     const storage = new MemoryStorage();
+    let reloadCallCount = 0;
+    const result = setActiveEnvironment('prod', {
+      storage,
+      switchEnabled: true,
+      reload: () => {
+        reloadCallCount++;
+      },
+    });
+    assert.equal(result, true);
+    assert.equal(reloadCallCount, 1);
+    assert.equal(storage.getItem(BACKEND_PREF_KEY), 'prod');
+  });
+
+  test('no-op when selecting already-active environment', () => {
+    const storage = new MemoryStorage({ [BACKEND_PREF_KEY]: 'prod' });
     let reloadCalled = false;
     const result = setActiveEnvironment('prod', {
       storage,
+      switchEnabled: true,
       reload: () => {
         reloadCalled = true;
       },
     });
     assert.equal(result, false);
     assert.equal(reloadCalled, false);
+    // Storage should not have been written to
+    assert.equal(storage.getItem(BACKEND_PREF_KEY), 'prod');
   });
 
-  test('returns false when storage is null', () => {
-    let reloadCalled = false;
-    const result = setActiveEnvironment('dev', {
-      storage: null,
-      reload: () => {
-        reloadCalled = true;
-      },
-    });
-    assert.equal(result, false);
-    assert.equal(reloadCalled, false);
-  });
-
-  test('handles storage.setItem throwing an error', () => {
+  test('storage.setItem error is caught and returns false', () => {
+    let setItemCalled = false;
     const throwingStorage = {
       getItem() {
         return null;
       },
       setItem() {
+        setItemCalled = true;
         throw new Error('Storage quota exceeded');
       },
     };
     let reloadCalled = false;
+    // Use 'prod' since empty storage defaults to 'dev'
     const result = setActiveEnvironment('prod', {
       storage: throwingStorage,
+      switchEnabled: true,
       reload: () => {
         reloadCalled = true;
       },
     });
     assert.equal(result, false);
     assert.equal(reloadCalled, false);
+    assert.equal(setItemCalled, true, 'setItem should have been called');
+  });
+
+  test('enforces gating invariant: switch disabled always returns false', () => {
+    const storage = new MemoryStorage();
+    let reloadCalled = false;
+    const result = setActiveEnvironment('dev', {
+      storage,
+      switchEnabled: false,
+      reload: () => {
+        reloadCalled = true;
+      },
+    });
+    assert.equal(result, false);
+    assert.equal(reloadCalled, false);
+    assert.equal(storage.getItem(BACKEND_PREF_KEY), null);
   });
 });
