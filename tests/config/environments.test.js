@@ -5,6 +5,7 @@ import {
   BACKEND_PREF_KEY,
   resolveEnvironmentId,
   buildSelectableList,
+  setActiveEnvironment,
 } from '../../src/config/environments.js';
 
 class MemoryStorage {
@@ -89,5 +90,66 @@ describe('ENVIRONMENTS shape', () => {
       assert.equal(env.id, id);
       assert.ok(env.label.length > 0);
     }
+  });
+});
+
+describe('setActiveEnvironment', () => {
+  test('rejects invalid ids', () => {
+    const storage = new MemoryStorage();
+    let reloadCalled = false;
+    const result = setActiveEnvironment('staging', {
+      storage,
+      reload: () => {
+        reloadCalled = true;
+      },
+    });
+    assert.equal(result, false);
+    assert.equal(reloadCalled, false);
+    assert.equal(storage.getItem(BACKEND_PREF_KEY), null);
+  });
+
+  test('returns false when switch is disabled (gating invariant)', () => {
+    const storage = new MemoryStorage();
+    let reloadCalled = false;
+    const result = setActiveEnvironment('prod', {
+      storage,
+      reload: () => {
+        reloadCalled = true;
+      },
+    });
+    assert.equal(result, false);
+    assert.equal(reloadCalled, false);
+  });
+
+  test('returns false when storage is null', () => {
+    let reloadCalled = false;
+    const result = setActiveEnvironment('dev', {
+      storage: null,
+      reload: () => {
+        reloadCalled = true;
+      },
+    });
+    assert.equal(result, false);
+    assert.equal(reloadCalled, false);
+  });
+
+  test('handles storage.setItem throwing an error', () => {
+    const throwingStorage = {
+      getItem() {
+        return null;
+      },
+      setItem() {
+        throw new Error('Storage quota exceeded');
+      },
+    };
+    let reloadCalled = false;
+    const result = setActiveEnvironment('prod', {
+      storage: throwingStorage,
+      reload: () => {
+        reloadCalled = true;
+      },
+    });
+    assert.equal(result, false);
+    assert.equal(reloadCalled, false);
   });
 });
