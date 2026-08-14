@@ -1,3 +1,5 @@
+import { normalizeBaseUrl, DEFAULT_BASE_URL } from './normalizeBaseUrl.js';
+
 // Application version - updated manually to match package.json
 export const APP_VERSION = '2.0.0';
 
@@ -21,27 +23,9 @@ export const OPENSUBTITLES_COM_API_KEY =
 //
 // Trailing slashes are normalized away. Missing /api/v1 suffix is auto-appended
 // (so you can pass either https://localhost:3001 or https://localhost:3001/api/v1).
-export const DEFAULT_BASE_URL = 'https://api.opensubtitles.com/api/v1';
-
-/**
- * Pure URL normalizer for the API base. Exported for unit testing.
- *
- *   normalizeBaseUrl(undefined)                              → DEFAULT_BASE_URL
- *   normalizeBaseUrl('')                                     → DEFAULT_BASE_URL
- *   normalizeBaseUrl('  ')                                   → DEFAULT_BASE_URL
- *   normalizeBaseUrl('http://localhost:3001')                → 'http://localhost:3001/api/v1'
- *   normalizeBaseUrl('http://localhost:3001/api/v1')         → 'http://localhost:3001/api/v1'
- *   normalizeBaseUrl('http://localhost:3001/api/v1/')        → 'http://localhost:3001/api/v1'
- *   normalizeBaseUrl('https://staging.opensubtitles.com/')   → 'https://staging.opensubtitles.com/api/v1'
- *   normalizeBaseUrl('https://x.com/api/v2')                 → 'https://x.com/api/v2'  (any /api/vN suffix preserved)
- */
-export function normalizeBaseUrl(raw) {
-  if (raw === null || raw === undefined || typeof raw !== 'string') return DEFAULT_BASE_URL;
-  const trimmed = raw.trim().replace(/\/+$/, '');
-  if (!trimmed) return DEFAULT_BASE_URL;
-  if (!/\/api\/v\d+$/.test(trimmed)) return trimmed + '/api/v1';
-  return trimmed;
-}
+// Base URL normalization lives in its own module to avoid an import cycle
+// with config/environments.js. Re-exported here for backwards compatibility.
+export { DEFAULT_BASE_URL, normalizeBaseUrl } from './normalizeBaseUrl.js';
 
 export const OPENSUBTITLES_BASE_URL = normalizeBaseUrl(
   typeof import.meta !== 'undefined' && import.meta.env
