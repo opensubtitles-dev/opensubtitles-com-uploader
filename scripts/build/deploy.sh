@@ -453,7 +453,7 @@ print_step "Current commit: $BEFORE_COMMIT"
 
 # Get the latest commit from GitHub API to verify what we should expect
 print_step "Checking latest commit from GitHub API..."
-EXPECTED_COMMIT=$(curl -s "https://api.github.com/repos/opensubtitlesdev/opensubtitles-com-uploader/commits/main" | grep '"sha"' | head -1 | sed 's/.*"sha": "\([^"]*\)".*/\1/' | cut -c1-7)
+EXPECTED_COMMIT=$(curl -s "https://api.github.com/repos/opensubtitles-dev/opensubtitles-com-uploader/commits/main" | grep '"sha"' | head -1 | sed 's/.*"sha": "\([^"]*\)".*/\1/' | cut -c1-7)
 if [ -z "$EXPECTED_COMMIT" ]; then
   print_warning "Could not fetch latest commit from GitHub API, proceeding with git fetch..."
 else

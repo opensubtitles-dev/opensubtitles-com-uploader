@@ -82,7 +82,7 @@ const ChangelogOverlay = ({ isOpen, onClose, colors, isDark }) => {
 The embedded changelog could not be loaded.
 
 **To view the complete changelog:**
-- [View on GitHub](https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases)
+- [View on GitHub](https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases)
 
 **Error details:** ${err.message}`;
 
@@ -306,7 +306,7 @@ The embedded changelog could not be loaded.
         >
           <div className="flex items-center justify-between">
             <a
-              href="https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases"
+              href="https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm hover:underline"

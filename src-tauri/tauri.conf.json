@@ -127,7 +127,7 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases/latest/download/latest.json"
+        "https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/latest/download/latest.json"
       ],
       "dialog": false,
       "pubkey": ""

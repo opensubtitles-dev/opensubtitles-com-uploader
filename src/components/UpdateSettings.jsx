@@ -55,7 +55,7 @@ const UpdateSettings = () => {
       fileName = `OpenSubtitles.Uploader.PRO_${version}_amd64.AppImage`;
     }
 
-    const directUrl = `https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases/download/v${version}/${fileName}`;
+    const directUrl = `https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/v${version}/${fileName}`;
 
     return {
       url: directUrl,
@@ -68,7 +68,7 @@ const UpdateSettings = () => {
 
   const handleMoreInfo = () => {
     // Open GitHub release page in browser (same as UpdateNotification popup)
-    const releaseUrl = `https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases/tag/v${updateInfo?.latestVersion}`;
+    const releaseUrl = `https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/tag/v${updateInfo?.latestVersion}`;
 
     if (typeof window !== 'undefined') {
       // For both standalone and web apps, open in external browser
@@ -257,7 +257,7 @@ const UpdateSettings = () => {
           <a
             href={
               updateInfo?.releaseUrl ||
-              `https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases/tag/v${updateInfo?.latestVersion}`
+              `https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/tag/v${updateInfo?.latestVersion}`
             }
             target="_blank"
             rel="noopener noreferrer"

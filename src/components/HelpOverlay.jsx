@@ -424,7 +424,7 @@ export const HelpOverlay = ({
                       Issues & Feedback
                     </div>
                     <a
-                      href="https://github.com/opensubtitlesdev/opensubtitles-com-uploader/issues"
+                      href="https://github.com/opensubtitles-dev/opensubtitles-com-uploader/issues"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="hover:underline"

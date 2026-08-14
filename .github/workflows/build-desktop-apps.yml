@@ -426,14 +426,14 @@ jobs:
           
           # Determine macOS file URL based on what actually exists
           if echo "$ASSETS" | grep -q "universal\.dmg"; then
-            MACOS_URL="https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases/download/$VERSION/OpenSubtitles.Uploader.PRO_${VERSION_NUM}_universal.dmg"
+            MACOS_URL="https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/$VERSION/OpenSubtitles.Uploader.PRO_${VERSION_NUM}_universal.dmg"
             echo "✅ Found DMG file, using: $MACOS_URL"
           elif echo "$ASSETS" | grep -q "_macos\.tar\.gz"; then
-            MACOS_URL="https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases/download/$VERSION/OpenSubtitles.Uploader.PRO_macos.tar.gz"
+            MACOS_URL="https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/$VERSION/OpenSubtitles.Uploader.PRO_macos.tar.gz"
             echo "✅ Found tar.gz file, using: $MACOS_URL"
           else
             echo "❌ No macOS file found (neither .dmg nor .tar.gz)"
-            MACOS_URL="https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases/download/$VERSION/OpenSubtitles.Uploader.PRO_${VERSION_NUM}_universal.dmg"
+            MACOS_URL="https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/$VERSION/OpenSubtitles.Uploader.PRO_${VERSION_NUM}_universal.dmg"
             echo "⚠️ Falling back to DMG URL: $MACOS_URL"
           fi
           
@@ -453,7 +453,7 @@ jobs:
             "platforms": {
               "windows-x86_64": {
                 "signature": "",
-                "url": "https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases/download/$VERSION/OpenSubtitles.Uploader.PRO_${VERSION_NUM}_x64-setup.exe"
+                "url": "https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/$VERSION/OpenSubtitles.Uploader.PRO_${VERSION_NUM}_x64-setup.exe"
               },
               "darwin-universal": {
                 "signature": "",
@@ -469,7 +469,7 @@ jobs:
               },
               "linux-x86_64": {
                 "signature": "",
-                "url": "https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases/download/$VERSION/OpenSubtitles.Uploader.PRO_${VERSION_NUM}_amd64.AppImage"
+                "url": "https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/$VERSION/OpenSubtitles.Uploader.PRO_${VERSION_NUM}_amd64.AppImage"
               }
             }
           }
