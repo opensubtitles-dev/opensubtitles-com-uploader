@@ -473,7 +473,7 @@ export class UpdateService {
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
       const response = await fetch(
-        'https://api.github.com/repos/opensubtitles/opensubtitles-uploader-pro/releases/latest',
+        'https://api.github.com/repos/opensubtitlesdev/opensubtitles-com-uploader/releases/latest',
         {
           headers: {
             Accept: 'application/vnd.github.v3+json',
@@ -716,7 +716,7 @@ Test completed successfully! ✅`;
       // Get the latest release info from GitHub
       console.log('📡 Fetching latest release info from GitHub...');
       const response = await fetch(
-        'https://api.github.com/repos/opensubtitles/opensubtitles-uploader-pro/releases/latest'
+        'https://api.github.com/repos/opensubtitlesdev/opensubtitles-com-uploader/releases/latest'
       );
 
       if (!response.ok) {
@@ -1351,7 +1351,7 @@ Test completed successfully! ✅`;
   constructDownloadUrl(version, platform) {
     const fileName = this.getDefaultFileName(version, platform);
     const versionTag = version.startsWith('v') ? version : `v${version}`;
-    return `https://github.com/opensubtitles/opensubtitles-uploader-pro/releases/download/${versionTag}/${fileName}`;
+    return `https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases/download/${versionTag}/${fileName}`;
   }
 
   /**

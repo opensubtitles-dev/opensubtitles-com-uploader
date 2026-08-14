@@ -1,6 +1,6 @@
 {
   "name": "opensubtitles-uploader-pro",
-  "version": "1.8.9",
+  "version": "2.0.0",
   "description": "OpenSubtitles Uploader PRO - Professional subtitle uploader",
   "keywords": [
     "opensubtitles",
@@ -10,10 +10,10 @@
     "vite",
     "pro"
   ],
-  "homepage": "https://github.com/opensubtitles/opensubtitles-uploader-pro",
+  "homepage": "https://github.com/opensubtitlesdev/opensubtitles-com-uploader",
   "repository": {
     "type": "git",
-    "url": "https://github.com/opensubtitles/opensubtitles-uploader-pro.git"
+    "url": "https://github.com/opensubtitlesdev/opensubtitles-com-uploader.git"
   },
   "author": "OpenSubtitles",
   "license": "MIT",

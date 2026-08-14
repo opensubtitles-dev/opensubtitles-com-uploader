@@ -1,6 +1,6 @@
 {
   "productName": "OpenSubtitles Uploader",
-  "version": "1.8.9",
+  "version": "2.0.0",
   "identifier": "com.opensubtitles.uploader.pro.v2",
   "build": {
     "beforeBuildCommand": "npm run build",
@@ -127,7 +127,7 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://github.com/opensubtitles/opensubtitles-uploader-pro/releases/latest/download/latest.json"
+        "https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases/latest/download/latest.json"
       ],
       "dialog": false,
       "pubkey": ""

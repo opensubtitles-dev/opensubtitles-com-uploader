@@ -19,7 +19,7 @@ console.log(`📦 Generating updater manifest for version ${version}`);
 // Fetch release notes from GitHub
 async function fetchReleaseNotes(version) {
   return new Promise((resolve, reject) => {
-    const url = `https://api.github.com/repos/opensubtitles/opensubtitles-uploader-pro/releases/tags/v${version}`;
+    const url = `https://api.github.com/repos/opensubtitlesdev/opensubtitles-com-uploader/releases/tags/v${version}`;
     
     https.get(url, {
       headers: {
@@ -83,7 +83,7 @@ function findPlatformFiles() {
       if (exe) {
         platforms['windows-x86_64'] = {
           signature: calculateSignature(exe),
-          url: `https://github.com/opensubtitles/opensubtitles-uploader-pro/releases/download/v${version}/${path.basename(exe)}`
+          url: `https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases/download/v${version}/${path.basename(exe)}`
         };
       }
     }
@@ -95,7 +95,7 @@ function findPlatformFiles() {
       const dmg = macosFiles[0]; // Take first DMG found
       platforms['darwin-universal'] = {
         signature: calculateSignature(dmg),
-        url: `https://github.com/opensubtitles/opensubtitles-uploader-pro/releases/download/v${version}/${path.basename(dmg)}`
+        url: `https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases/download/v${version}/${path.basename(dmg)}`
       };
       // Also add separate entries for Intel and Apple Silicon
       platforms['darwin-x86_64'] = platforms['darwin-universal'];
@@ -109,7 +109,7 @@ function findPlatformFiles() {
       const appimage = linuxFiles[0];
       platforms['linux-x86_64'] = {
         signature: calculateSignature(appimage),
-        url: `https://github.com/opensubtitles/opensubtitles-uploader-pro/releases/download/v${version}/${path.basename(appimage)}`
+        url: `https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases/download/v${version}/${path.basename(appimage)}`
       };
     }
   }

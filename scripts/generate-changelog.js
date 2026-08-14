@@ -23,7 +23,7 @@ if (!fs.existsSync(dataDir)) {
 
 const options = {
   hostname: 'api.github.com',
-  path: '/repos/opensubtitles/opensubtitles-uploader-pro/releases',
+  path: '/repos/opensubtitlesdev/opensubtitles-com-uploader/releases',
   headers: {
     'User-Agent': 'OpenSubtitles-Uploader-PRO',
     'Accept': 'application/vnd.github.v3+json'

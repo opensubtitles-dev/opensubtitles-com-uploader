@@ -1,7 +1,7 @@
 # OpenSubtitles Uploader PRO
 
-[![Tests](https://github.com/opensubtitles/opensubtitles-uploader-pro/workflows/Tests/badge.svg)](https://github.com/opensubtitles/opensubtitles-uploader-pro/actions)
-[![Version](https://img.shields.io/badge/version-1.8.9-blue.svg)](https://github.com/opensubtitles/opensubtitles-uploader-pro/releases)
+[![Tests](https://github.com/opensubtitlesdev/opensubtitles-com-uploader/workflows/Tests/badge.svg)](https://github.com/opensubtitlesdev/opensubtitles-com-uploader/actions)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-uploader.opensubtitles.org-brightgreen.svg)](https://uploader.opensubtitles.org)
 
@@ -12,7 +12,7 @@ A professional subtitle uploader application that integrates with OpenSubtitles 
 ## 📦 Downloads
 
 ### Desktop Application
-**📦 [Download Latest Release](https://github.com/opensubtitles/opensubtitles-uploader-pro/releases/latest)**
+**📦 [Download Latest Release](https://github.com/opensubtitlesdev/opensubtitles-com-uploader/releases/latest)**
 
 - **Windows x64**: `OpenSubtitles Uploader PRO_x.x.x_x64-setup.exe` - Windows installer
 - **macOS (Universal)**: `OpenSubtitles Uploader PRO_x.x.x_universal.dmg` - Intel & Apple Silicon Macs
@@ -78,8 +78,8 @@ Works with all modern browsers including Chrome, Firefox, Safari, Edge, and Brav
 
 1. **Clone and install**
    ```bash
-   git clone https://github.com/opensubtitles/opensubtitles-uploader-pro.git
-   cd opensubtitles-uploader-pro
+   git clone https://github.com/opensubtitlesdev/opensubtitles-com-uploader.git
+   cd opensubtitles-com-uploader
    npm install
    ```
 
@@ -251,7 +251,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🆘 Support
 
 - 📖 **Documentation**: [OpenSubtitles API Docs](https://api.opensubtitles.com)
-- 🐛 **Issues**: [GitHub Issues](https://github.com/opensubtitles/opensubtitles-uploader-pro/issues)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/opensubtitlesdev/opensubtitles-com-uploader/issues)
 
 ## 🙏 Acknowledgments
 
