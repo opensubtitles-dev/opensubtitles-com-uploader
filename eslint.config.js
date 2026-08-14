@@ -70,6 +70,9 @@ export default [
         import: 'readonly',
         // Embedded constants
         __EMBEDDED_OPENSUBTITLES_API_KEY__: 'readonly',
+        __EMBEDDED_OPENSUBTITLES_API_KEY_PROD__: 'readonly',
+        __EMBEDDED_OPENSUBTITLES_API_KEY_DEV__: 'readonly',
+        __ENV_SWITCH_ENABLED__: 'readonly',
       },
     },
     settings: {
