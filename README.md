@@ -1,263 +1,264 @@
-# OpenSubtitles Uploader PRO
+# OpenSubtitles Uploader
 
-[![Tests](https://github.com/opensubtitles-dev/opensubtitles-com-uploader/workflows/Tests/badge.svg)](https://github.com/opensubtitles-dev/opensubtitles-com-uploader/actions)
 [![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-uploader.opensubtitles.org-brightgreen.svg)](https://uploader.opensubtitles.org)
 
-A professional subtitle uploader application that integrates with OpenSubtitles APIs for seamless subtitle management and upload.
+A subtitle uploader for **opensubtitles.com**, available as a desktop app and in the
+browser. Drop video and subtitle files in, and it pairs them, detects languages,
+calculates movie hashes, identifies titles, and uploads — all against the
+opensubtitles.com REST API.
 
-**🚀 [Try it live at uploader.opensubtitles.org](https://uploader.opensubtitles.org)**
+> **2.0.0 is a rewrite.** Every call now goes through the `.com` REST API; the legacy
+> `.org` XML-RPC client has been removed entirely, and authentication is JWT-based.
+> If you are looking for the original, see
+> [opensubtitles-uploader-pro](https://github.com/opensubtitles/opensubtitles-uploader-pro).
 
 ## 📦 Downloads
 
-### Desktop Application
-**📦 [Download Latest Release](https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/latest)**
+**[Download the latest release](https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/latest)**
 
-- **Windows x64**: `OpenSubtitles Uploader PRO_x.x.x_x64-setup.exe` - Windows installer
-- **macOS (Universal)**: `OpenSubtitles Uploader PRO_x.x.x_universal.dmg` - Intel & Apple Silicon Macs
-- **Linux x64**: `opensubtitles-uploader-pro_x.x.x_amd64.AppImage` - Universal Linux binary
-- **Linux x64**: `opensubtitles-uploader-pro_x.x.x_amd64.deb` - Debian/Ubuntu package
+- **Windows x64** — `.exe` installer
+- **macOS** — universal `.dmg` (Intel & Apple Silicon)
+- **Linux x64** — `.AppImage` and `.deb`
 
 ## ✨ Features
 
-### 🎬 Smart Upload Experience
-- **Drag & Drop Interface** - Drop video and subtitle files directly into the browser
-- **Automatic File Pairing** - Smart matching of video and subtitle files
-- **Language Detection** - AI-powered subtitle language identification
-- **Movie Recognition** - Intelligent movie/episode detection with IMDb integration
-- **Batch Processing** - Handle multiple video/subtitle pairs simultaneously
+### Smart upload experience
+- **Drag & drop** — drop files or whole directories
+- **Automatic pairing** — matches videos to subtitles by filename similarity
+- **Language detection** — identifies subtitle language automatically
+- **Title recognition** — movie and episode detection with IMDb integration
+- **Batch processing** — many pairs at once
 
-### 🤖 Intelligent Automation
-- **Video Metadata Extraction** - Automatic detection of resolution, codec, bitrate, duration
-- **Episode Detection** - Smart TV show episode identification with season/episode numbering
-- **Movie Hash Calculation** - Generates OpenSubtitles-compatible hashes for precise matching
-- **Automatic Tagging** - Detects HD quality, hearing impaired, foreign parts from filenames
-- **Subtitle Statistics** - Shows existing subtitle counts and language availability
+### Intelligent automation
+- **Video metadata extraction** — resolution, codec, bitrate, duration
+- **Episode detection** — season/episode numbering, attaching to the episode rather than the series
+- **Movie hash calculation** — OpenSubtitles-compatible hashes for precise matching
+- **Automatic tagging** — HD, hearing impaired and foreign-parts flags inferred from filenames
+- **Create-from-ID** — paste an IMDb or TMDb id and create a missing title without leaving the app
+- **MKV subtitle extraction** — pulls embedded subtitle tracks out of MKV files
 
-### 🎨 User Experience
-- **Modern UI** - Clean, responsive interface with automatic dark/light theme detection
-- **Performance Optimized** - Intelligent caching, retry logic, and parallel processing
-- **Upload Validation** - Comprehensive pre-upload checks to ensure successful submissions
-- **Ad Blocker Detection** - Automatic detection and guidance for browser compatibility
+### User experience
+- **Modern UI** — DaisyUI on Tailwind, with dark/light theme detection
+- **Upload history** — review, edit and delete your uploads in-app
+- **Performance** — caching, retry logic and parallel processing
+- **Ad blocker detection** — warns and guides when a blocker interferes
 
-## 🚀 How to Use
+## 🚀 Using it
 
-### Basic Upload Process
+1. **Open the app** — launch the desktop build, or run it in a browser
+2. **Drop files** — videos and subtitles, or entire directories
+3. **Let it work** — pairing, metadata extraction, hashing, language detection and title identification all run automatically
+4. **Review and upload** — check what was detected, adjust anything, upload
 
-1. **🎯 Open the App** - Visit [uploader.opensubtitles.org](https://uploader.opensubtitles.org) or launch desktop app
-2. **📁 Drop Files** - Drag video and subtitle files (or entire directories) into the interface
-3. **⚙️ Automatic Processing** - The app automatically:
-   - Pairs videos with subtitles based on filename similarity
-   - Extracts video metadata (resolution, codec, duration)
-   - Calculates movie hashes for precise matching
-   - Detects subtitle languages using AI
-   - Identifies movies/episodes with IMDb integration
-4. **✅ Review & Upload** - Check detected information, customize if needed, and upload
+### Supported formats
 
-### Supported File Formats
+**Video** — `.mp4`, `.mkv`, `.avi`, `.mov`, `.webm`, `.flv`, `.wmv`, and more
 
-**Video Files**: `.mp4`, `.mkv`, `.avi`, `.mov`, `.webm`, `.flv`, `.wmv`, etc.
+**Subtitles** — `.srt`, `.vtt`, `.ass`, `.ssa`, `.sub`, `.txt`, and more
 
-**Subtitle Files**: `.srt`, `.vtt`, `.ass`, `.ssa`, `.sub`, `.txt`, etc.
+### Browser compatibility
 
-### Browser Compatibility
+Works in Chrome, Firefox, Safari, Edge and Brave (disable Shields for the site).
+If uploads misbehave, check the connectivity test page linked in the footer — ad
+blockers are the usual cause.
 
-Works with all modern browsers including Chrome, Firefox, Safari, Edge, and Brave (with Shield disabled for this site).
-
-**🛡️ Ad Blocker Issues?** - The app includes automatic detection and guidance for ad blocker compatibility. Visit the connectivity test page via the footer link if you experience issues.
-
-## 🏗️ Development Setup
+## 🏗️ Development setup
 
 ### Prerequisites
 
-- Node.js 16+ and npm
-- OpenSubtitles.com API account ([register here](https://www.opensubtitles.com/en/consumers))
+- **Node.js 18+** and npm (the test suite uses the built-in `node --test` runner)
+- An **opensubtitles.com API key** — [register as a consumer](https://www.opensubtitles.com/en/consumers)
 
-### Quick Start
-
-1. **Clone and install**
-   ```bash
-   git clone https://github.com/opensubtitles-dev/opensubtitles-com-uploader.git
-   cd opensubtitles-com-uploader
-   npm install
-   ```
-
-2. **Configure API credentials**
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your OpenSubtitles API key
-   ```
-
-3. **Start development server**
-   ```bash
-   npm run dev
-   # Open http://localhost:5173
-   ```
-
-### Build Commands
+### Install
 
 ```bash
-npm run dev       # Development server
-npm run build     # Production build
-npm run preview   # Preview production build
-npm test          # Run test suite
+git clone git@github.com:opensubtitles-dev/opensubtitles-com-uploader.git
+cd opensubtitles-com-uploader
+npm install
+cp .env.example .env   # then fill in your keys
 ```
 
-## 🖥️ Desktop App Development
+### Configuration
 
-### Prerequisites for Desktop Builds
+All configuration lives in `.env`. See `.env.example` for the annotated version.
 
-1. **Install Rust** (required for Tauri):
+| Variable | Purpose |
+|---|---|
+| `VITE_OPENSUBTITLES_API_KEY_PROD` | Production API key. Required for any build that can reach production. |
+| `VITE_OPENSUBTITLES_API_KEY_DEV` | API key for the dev backend. Only needed for builds that talk to it. |
+| `VITE_OPENSUBTITLES_BASE_URL` | Base URL of the **dev** backend, e.g. `https://osdev.ngrok.dev/api/v1`. Leave unset and the dev environment is not selectable. |
+| `VITE_ENV_SWITCH` | `true` shows the environment switch in the header. Leave unset for public builds. |
+
+Production is **hard-wired** to `https://api.opensubtitles.com/api/v1` and is not
+configurable — only the dev URL is. The `/api/v1` suffix is appended if you omit it,
+and trailing slashes are stripped.
+
+The legacy single-key variable `VITE_OPENSUBTITLES_API_KEY` is still accepted, but
+**only** as a fallback for the dev key — never for production. A wrong key against
+production fails at the API gateway, so that path is deliberately not silent.
+
+### Running
+
+```bash
+npm run dev                       # web dev server, switch per .env
+VITE_ENV_SWITCH=true npm run dev  # force the switch on for this run
+npm run tauri:dev                 # desktop app
+```
+
+## 🔀 The environment switch
+
+Builds made with `VITE_ENV_SWITCH=true` show a control in the header that switches
+the backend between **Production** and **Dev (ngrok)**. It exists so remote testers
+can exercise a dev backend without a toolchain, and compare against production.
+
+Three things worth knowing:
+
+- **Switching reloads the app.** The choice is persisted, then the window reloads so
+  every module re-resolves the backend. Anything in flight — dropped files, detections
+  — is lost, so pick your environment before you start work.
+- **Sessions and caches are per-environment.** Logging in on production does not log
+  you in on dev, and API responses cached from one backend are invisible to the other.
+  Flip back and your previous session is still there.
+- **Public builds ignore all of it.** With the flag unset, the app is hard-wired to
+  production and ignores any stored preference — including one left behind by a tester
+  build previously installed on the same machine.
+
+Upgrading from a pre-2.0.0 build clears the old session once, because stored
+credentials from before this change cannot be attributed to a backend. You log in again
+the first time; after that it persists normally.
+
+## 🖥️ Desktop builds
+
+### Prerequisites
+
+1. **Rust** (for Tauri):
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    source ~/.cargo/env
    ```
+2. **System dependencies**
+   - **macOS** — none
+   - **Windows** — [Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+   - **Linux**:
+     ```bash
+     sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+     ```
 
-2. **Install system dependencies**:
-   
-   **macOS**: No additional dependencies needed
-   
-   **Windows**: Install [Microsoft Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
-   
-   **Linux**: Install system dependencies:
-   ```bash
-   # Ubuntu/Debian
-   sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
-   ```
-
-### Building Desktop Apps
+### Building
 
 ```bash
-# Development build (with console output)
-npm run tauri:dev
+# Tester build — switch visible, both keys embedded
+VITE_ENV_SWITCH=true npm run tauri:build
 
-# Production build (optimized)
+# Public build — production only, no switch
 npm run tauri:build
 ```
 
-### Desktop App Features
+A tester build embeds the production key, so anyone with the binary can extract it.
+That is the same exposure the public release already carries, but it does mean tester
+builds should be shared by link rather than posted publicly.
 
-The desktop version includes all web features plus:
-- Native file system access without browser limitations
-- System integration with native dialogs and notifications
-- Offline capability for local file processing
-- Enhanced performance for large file operations
+> **Note on `npm run build`:** it chains `generate-changelog`, which regenerates
+> `CHANGELOG.md` from this repository's GitHub releases. Until the fork publishes
+> releases, that will empty the changelog. For a plain web build use `npx vite build`.
 
-## 🔧 Configuration
-
-### Environment Variables
-
-Create a `.env` file:
+## 🧪 Testing
 
 ```bash
-# Required: OpenSubtitles.com REST API Key
-VITE_OPENSUBTITLES_API_KEY=your_api_key_here
+npm test              # unit suite — node --test
+npm run lint
+npm run format:check
 ```
 
-### Authentication
+The suite is unit-only and performs no network calls. Before a release, the manual
+**production smoke test** in [`docs/plans/08-testing-strategy.md`](docs/plans/08-testing-strategy.md) §6
+must pass: upload a subtitle for a known title, one for a title created from an IMDb id,
+and one episode subtitle, then delete all three and confirm the rows are gone.
 
-The app supports multiple authentication methods:
+Staging is deliberately not a test target — it runs against the production database
+with no sidekiq and no dedicated opensearch indexes, so uploads there are never properly
+saved or indexed. The smoke test therefore runs against production, where test uploads
+stay identifiable by source, date and the `v2.0.0` user-agent.
 
-1. **URL Parameter**: `?sid=your_session_id` (highest priority)
-2. **Browser Cookie**: `PHPSESSID` cookie
-3. **Anonymous**: Falls back to anonymous access
+## 🚀 Releases
 
-## 🏗️ Technical Details
+Follow this sequence exactly — the version must be committed before anything is built,
+or the release ships files stamped with the previous version:
 
-### Architecture
+```bash
+npm run update-version        # syncs package.json, constants.js, tauri.conf.json, Cargo.toml, README badge
+npm run generate-changelog
+git add . && git commit -m "🚀 RELEASE: Version X.X.X - Description"
+git tag vX.X.X && git push && git push --tags
+gh workflow run "Build Desktop Apps" --field create_release=true
+```
 
-- **React 18** with hooks-based architecture
-- **Vite** for development and build tooling
-- **Tailwind CSS** for styling with automatic theme detection
-- **Tauri** for desktop application framework
+Every release needs `latest.json` (the Tauri updater manifest) alongside the platform
+installers — auto-updates break without it.
 
-### API Integration
+## 🏗️ Technical details
 
-**OpenSubtitles Legacy XML-RPC API** (`api.opensubtitles.org/xml-rpc`):
-- Movie identification and subtitle upload operations
+### Stack
 
-**OpenSubtitles Modern REST API** (`api.opensubtitles.com/api/v1`):
-- AI-powered language detection and metadata extraction
+- **React 18**, hooks-based
+- **Vite** for dev server and builds
+- **Tailwind CSS + DaisyUI 4**, with `lucide-react` icons
+- **Tauri v2** for the desktop app
 
-### Performance & Caching
+### API
 
-- Intelligent caching system with 72-hour retention
-- Parallel processing for multiple files
-- Retry logic for network operations
-- Smart request throttling and rate limiting
+Everything goes through the **opensubtitles.com REST API**
+(`https://api.opensubtitles.com/api/v1`): authentication, title guessing, duplicate
+checking, upload, and upload history. Requests carry an `Api-Key` header and, when
+logged in, a JWT bearer token. Anonymous uploads are supported — the app simply omits
+the authorization header.
 
-### Project Structure
+### Project structure
 
 ```
 src/
 ├── components/          # React components
-│   ├── FileList/       # File listing components
-│   └── ...
-├── hooks/              # Custom React hooks
-├── services/           # API and business logic
-│   ├── api/           # API integrations
-│   └── ...
-├── utils/              # Utility functions
-└── contexts/           # React contexts
+│   ├── FileList/        # File listing
+│   └── history/         # Upload history
+├── config/
+│   └── environments.js  # Backend registry, active-environment resolution
+├── contexts/            # React contexts (auth, theme)
+├── hooks/               # Custom hooks
+├── services/
+│   ├── api/             # REST client and per-resource services
+│   └── ...              # Hashing, caching, file processing
+└── utils/               # Constants, storage keys, helpers
 ```
-
-## 🚀 CI/CD & Releases
-
-### Automated Builds
-
-The project includes automated CI/CD workflows:
-
-**Workflow Triggers**:
-- **CI Build**: Runs on every push/PR
-- **Release Build**: Triggered by git tags (`v*`)
-- **Multi-platform**: Builds for Windows, macOS, and Linux simultaneously
-
-**Creating a Release**:
-```bash
-git tag v1.5.4
-git push origin v1.5.4
-```
-
-## 🧪 Testing
-
-Comprehensive test suite with 42+ test cases covering:
-- File detection and movie title extraction
-- Multilingual subtitle directory handling  
-- Complex filename processing
-- Edge cases and real-world scenarios
-
-Tests run automatically on every push and pull request.
 
 ## 🔒 Security
 
-- 🔒 **No Hardcoded Secrets** - All API keys via environment variables
-- 🛡️ **Session-Based Auth** - Secure authentication flow
-- 🔐 **Environment Isolation** - Development/production separation
-- 📝 **Input Validation** - Comprehensive file and data validation
+- **No secrets in the repo.** Keys come from `.env` locally and are embedded at build
+  time for distribution. `src/utils/embeddedConstants.js` is generated and gitignored.
+- **Never log credentials.** Use `logSensitiveData()` from `src/utils/securityUtils.js`
+  for anything token-shaped. Partial tokens count as exposure — do not log the first
+  few characters of a key to "identify" it.
+- **Per-environment isolation.** Tokens and cached API data are namespaced by backend,
+  so a dev session can never be presented as a production one.
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. Commit your changes
+4. Push and open a Pull Request
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE).
 
 ## 🆘 Support
 
-- 📖 **Documentation**: [OpenSubtitles API Docs](https://api.opensubtitles.com)
-- 🐛 **Issues**: [GitHub Issues](https://github.com/opensubtitles-dev/opensubtitles-com-uploader/issues)
+- **API docs**: [api.opensubtitles.com](https://api.opensubtitles.com)
+- **Issues**: [GitHub Issues](https://github.com/opensubtitles-dev/opensubtitles-com-uploader/issues)
 
 ## 🙏 Acknowledgments
 
-- [OpenSubtitles.org](https://www.opensubtitles.org/) for the comprehensive subtitle database and APIs
-- [OpenSubtitles.com](https://www.opensubtitles.com/) for the modern API platform and developer resources
-- [React](https://reactjs.org/) for the excellent frontend framework
-- [Vite](https://vitejs.dev/) for the fast development experience
-- [Tailwind CSS](https://tailwindcss.com/) for the utility-first styling approach
-- [Claude Code AI](https://claude.ai/code) for development assistance and code architecture
+- [OpenSubtitles.com](https://www.opensubtitles.com/) for the API platform and developer resources
+- [React](https://reactjs.org/), [Vite](https://vitejs.dev/), [Tailwind CSS](https://tailwindcss.com/) and [DaisyUI](https://daisyui.com/)
+- [Tauri](https://tauri.app/) for the desktop framework
