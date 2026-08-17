@@ -10,6 +10,7 @@ import {
   createLanguagesApi,
   normalizeLanguagesResponse,
 } from '../../../src/services/api/languages.js';
+import { CACHE_PREFIXES } from '../../../src/utils/storageKeys.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -135,7 +136,7 @@ describe('languagesApi.list', () => {
     const api = createLanguagesApi({ client, cache });
 
     await api.list();
-    const cached = cache.loadFromCache('rest_languages_cache');
+    const cached = cache.loadFromCache(CACHE_PREFIXES.LANGUAGES);
     assert.deepEqual(cached, [{ language_code: 'eng', language_name: 'English' }]);
   });
 
@@ -196,6 +197,6 @@ describe('languagesApi.list', () => {
     });
     const api = createLanguagesApi({ client, cache });
     await assert.rejects(() => api.list());
-    assert.equal(cache.loadFromCache('rest_languages_cache'), null);
+    assert.equal(cache.loadFromCache(CACHE_PREFIXES.LANGUAGES), null);
   });
 });

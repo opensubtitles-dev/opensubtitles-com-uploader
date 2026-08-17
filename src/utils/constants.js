@@ -73,19 +73,27 @@ export const validateApiConfiguration = () => {
 // utils/storageKeys.js#migrateLegacyKeys on first launch. New cache keys
 // for the REST era live under the rest_* namespace (see CACHE_PREFIXES in
 // storageKeys.js).
-export const CACHE_KEYS = {
-  LANGUAGES: 'opensubtitles_languages_cache',
-  LANGUAGES_EXPIRY: 'opensubtitles_languages_cache_expiry',
-  GUESSIT_CACHE: 'opensubtitles_guessit_cache',
-  GUESSIT_CACHE_EXPIRY: 'opensubtitles_guessit_cache_expiry',
-  MOVIE_GUESS_CACHE: 'opensubtitles_movie_guess_cache',
-  MOVIE_GUESS_CACHE_EXPIRY: 'opensubtitles_movie_guess_cache_expiry',
-  LANGUAGE_DETECTION_CACHE: 'opensubtitles_language_detection_cache',
-  LANGUAGE_DETECTION_CACHE_EXPIRY: 'opensubtitles_language_detection_cache_expiry',
-  FEATURES_CACHE: 'opensubtitles_features_cache',
-  FEATURES_CACHE_EXPIRY: 'opensubtitles_features_cache_expiry',
-  DEBUG_MODE: 'opensubtitles_debug_mode',
-};
+/**
+ * Legacy-named cache keys still used by services/cache.js, scoped per
+ * environment. DEBUG_MODE stays global — it is a UI preference, not
+ * backend-derived data.
+ */
+export const buildCacheKeys = envId =>
+  Object.freeze({
+    LANGUAGES: `opensubtitles_${envId}_languages_cache`,
+    LANGUAGES_EXPIRY: `opensubtitles_${envId}_languages_cache_expiry`,
+    GUESSIT_CACHE: `opensubtitles_${envId}_guessit_cache`,
+    GUESSIT_CACHE_EXPIRY: `opensubtitles_${envId}_guessit_cache_expiry`,
+    MOVIE_GUESS_CACHE: `opensubtitles_${envId}_movie_guess_cache`,
+    MOVIE_GUESS_CACHE_EXPIRY: `opensubtitles_${envId}_movie_guess_cache_expiry`,
+    LANGUAGE_DETECTION_CACHE: `opensubtitles_${envId}_language_detection_cache`,
+    LANGUAGE_DETECTION_CACHE_EXPIRY: `opensubtitles_${envId}_language_detection_cache_expiry`,
+    FEATURES_CACHE: `opensubtitles_${envId}_features_cache`,
+    FEATURES_CACHE_EXPIRY: `opensubtitles_${envId}_features_cache_expiry`,
+    DEBUG_MODE: 'opensubtitles_debug_mode',
+  });
+
+export const CACHE_KEYS = buildCacheKeys(getActiveEnvironmentId());
 
 // File Extensions
 export const VIDEO_EXTENSIONS = [

@@ -9,29 +9,47 @@
  * See docs/plans/03-auth-migration.md §5 and docs/plans/04-rest-client-refactor.md §8.
  */
 
-// Auth state
-export const STORAGE_KEYS = Object.freeze({
-  JWT:        'osdb_com_jwt',
-  USER:       'osdb_com_user',
-  LOGIN_TIME: 'osdb_com_login_time',
-  // Pre-existing — kept unchanged (purely cosmetic "remember last username")
-  REMEMBERED_USERNAME: 'opensubtitles_remembered_username',
-  // Migration marker — presence means we already pruned legacy keys
-  MIGRATION_V2_DONE: 'osdb_migration_v2_done',
-  // User preference — backend endpoint selection (for dual-endpoint toggle)
-  BACKEND_PREF: 'osdb_backend',  // values: 'com' (default) | 'org'
-});
+import { getActiveEnvironmentId, BACKEND_PREF_KEY } from '../config/environments.js';
 
-// Cache key prefixes — used with suffixes per-entry
-export const CACHE_PREFIXES = Object.freeze({
-  LANGUAGES:          'rest_languages_cache',
-  FEATURES_IMDB:      'rest_features_cache:imdb:',
-  FEATURES_QUERY:     'rest_features_cache:query:',
-  MOVIE_GUESS:        'rest_movie_guess_cache:',
-  CHECK:              'rest_check_cache:',
-  LANG_DETECT:        'rest_lang_detect_cache:',
-  GUESSIT:            'rest_guessit_cache:',
-});
+/**
+ * Auth keys, scoped to a backend environment.
+ *
+ * The environment id is an INFIX, not a suffix: 'osdb_com_dev_jwt', not
+ * 'osdb_com_jwt:dev'. That keeps the osdb_com_ prefix contract intact and,
+ * for the cache keys below, keeps the '_expiry' suffix at the end where
+ * cache.js's endsWith() filters expect it.
+ *
+ * Exported as a pure builder so tests can check both environments without
+ * module-cache tricks.
+ */
+export const buildStorageKeys = envId =>
+  Object.freeze({
+    JWT: `osdb_com_${envId}_jwt`,
+    USER: `osdb_com_${envId}_user`,
+    LOGIN_TIME: `osdb_com_${envId}_login_time`,
+    // Cosmetic "remember last username" — identical across environments
+    REMEMBERED_USERNAME: 'opensubtitles_remembered_username',
+    // Migration markers — global by definition
+    MIGRATION_V2_DONE: 'osdb_migration_v2_done',
+    MIGRATION_V3_DONE: 'osdb_migration_v3_done',
+    // The environment selector itself. Never scoped — it is what chooses
+    // the scope. Owned by config/environments.js.
+    BACKEND_PREF: BACKEND_PREF_KEY,
+  });
+
+export const buildCachePrefixes = envId =>
+  Object.freeze({
+    LANGUAGES: `rest_${envId}_languages_cache`,
+    FEATURES_IMDB: `rest_${envId}_features_cache:imdb:`,
+    FEATURES_QUERY: `rest_${envId}_features_cache:query:`,
+    MOVIE_GUESS: `rest_${envId}_movie_guess_cache:`,
+    CHECK: `rest_${envId}_check_cache:`,
+    LANG_DETECT: `rest_${envId}_lang_detect_cache:`,
+    GUESSIT: `rest_${envId}_guessit_cache:`,
+  });
+
+export const STORAGE_KEYS = buildStorageKeys(getActiveEnvironmentId());
+export const CACHE_PREFIXES = buildCachePrefixes(getActiveEnvironmentId());
 
 /**
  * Legacy keys from the .org XML-RPC era. Deleted on first launch.

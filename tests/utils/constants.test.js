@@ -76,3 +76,44 @@ describe('active environment wiring', () => {
     assert.equal(API_ENDPOINTS.OPENSUBTITLES_REST, OPENSUBTITLES_BASE_URL);
   });
 });
+
+import { buildCacheKeys } from '../../src/utils/constants.js';
+
+describe('environment-scoped CACHE_KEYS', () => {
+  test('cache keys carry the environment as an infix', () => {
+    const dev = buildCacheKeys('dev');
+    assert.equal(dev.GUESSIT_CACHE, 'opensubtitles_dev_guessit_cache');
+    assert.equal(dev.MOVIE_GUESS_CACHE, 'opensubtitles_dev_movie_guess_cache');
+    assert.equal(dev.LANGUAGE_DETECTION_CACHE, 'opensubtitles_dev_language_detection_cache');
+    assert.equal(dev.FEATURES_CACHE, 'opensubtitles_dev_features_cache');
+    assert.equal(dev.LANGUAGES, 'opensubtitles_dev_languages_cache');
+  });
+
+  test('expiry twins keep the _expiry suffix so cache.js filters keep working', () => {
+    const dev = buildCacheKeys('dev');
+    for (const name of [
+      'LANGUAGES_EXPIRY',
+      'GUESSIT_CACHE_EXPIRY',
+      'MOVIE_GUESS_CACHE_EXPIRY',
+      'LANGUAGE_DETECTION_CACHE_EXPIRY',
+      'FEATURES_CACHE_EXPIRY',
+    ]) {
+      assert.ok(dev[name].endsWith('_expiry'), `${name} must end with _expiry`);
+    }
+  });
+
+  test('an expiry key is exactly its base key plus _expiry', () => {
+    const dev = buildCacheKeys('dev');
+    assert.equal(dev.GUESSIT_CACHE_EXPIRY, dev.GUESSIT_CACHE + '_expiry');
+    assert.equal(dev.FEATURES_CACHE_EXPIRY, dev.FEATURES_CACHE + '_expiry');
+  });
+
+  test('DEBUG_MODE is a UI preference and is NOT scoped', () => {
+    assert.equal(buildCacheKeys('dev').DEBUG_MODE, buildCacheKeys('prod').DEBUG_MODE);
+    assert.equal(buildCacheKeys('dev').DEBUG_MODE, 'opensubtitles_debug_mode');
+  });
+
+  test('prod and dev cache keys never collide', () => {
+    assert.notEqual(buildCacheKeys('dev').FEATURES_CACHE, buildCacheKeys('prod').FEATURES_CACHE);
+  });
+});

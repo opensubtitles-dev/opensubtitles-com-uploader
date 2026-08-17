@@ -122,3 +122,59 @@ describe('migrateLegacyKeys', () => {
     assert.doesNotThrow(() => migrateLegacyKeys(broken));
   });
 });
+
+import { buildStorageKeys, buildCachePrefixes } from '../../src/utils/storageKeys.js';
+
+describe('environment-scoped keys', () => {
+  test('auth keys carry the environment as an infix', () => {
+    const dev = buildStorageKeys('dev');
+    assert.equal(dev.JWT, 'osdb_com_dev_jwt');
+    assert.equal(dev.USER, 'osdb_com_dev_user');
+    assert.equal(dev.LOGIN_TIME, 'osdb_com_dev_login_time');
+  });
+
+  test('prod and dev never collide', () => {
+    const dev = buildStorageKeys('dev');
+    const prod = buildStorageKeys('prod');
+    assert.notEqual(dev.JWT, prod.JWT);
+    assert.equal(prod.JWT, 'osdb_com_prod_jwt');
+  });
+
+  test('scoped auth keys still satisfy the osdb_com_ prefix contract', () => {
+    for (const id of ['dev', 'prod']) {
+      const k = buildStorageKeys(id);
+      assert.match(k.JWT, /^osdb_com_/);
+      assert.match(k.USER, /^osdb_com_/);
+      assert.match(k.LOGIN_TIME, /^osdb_com_/);
+    }
+  });
+
+  test('the backend preference key is NOT scoped — it is the selector', () => {
+    assert.equal(buildStorageKeys('dev').BACKEND_PREF, 'osdb_backend');
+    assert.equal(buildStorageKeys('prod').BACKEND_PREF, 'osdb_backend');
+  });
+
+  test('migration markers and remembered username are NOT scoped', () => {
+    const dev = buildStorageKeys('dev');
+    const prod = buildStorageKeys('prod');
+    assert.equal(dev.MIGRATION_V2_DONE, prod.MIGRATION_V2_DONE);
+    assert.equal(dev.REMEMBERED_USERNAME, prod.REMEMBERED_USERNAME);
+  });
+
+  test('cache prefixes carry the environment and keep their trailing separator', () => {
+    const dev = buildCachePrefixes('dev');
+    assert.equal(dev.LANGUAGES, 'rest_dev_languages_cache');
+    assert.equal(dev.FEATURES_IMDB, 'rest_dev_features_cache:imdb:');
+    assert.equal(dev.FEATURES_QUERY, 'rest_dev_features_cache:query:');
+    assert.equal(dev.MOVIE_GUESS, 'rest_dev_movie_guess_cache:');
+    assert.equal(dev.CHECK, 'rest_dev_check_cache:');
+    assert.equal(dev.LANG_DETECT, 'rest_dev_lang_detect_cache:');
+    assert.equal(dev.GUESSIT, 'rest_dev_guessit_cache:');
+  });
+
+  test('scoped cache prefixes still satisfy the rest_ prefix contract', () => {
+    for (const v of Object.values(buildCachePrefixes('prod'))) {
+      assert.match(v, /^rest_/);
+    }
+  });
+});
