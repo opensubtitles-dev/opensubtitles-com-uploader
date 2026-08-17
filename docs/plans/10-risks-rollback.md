@@ -107,7 +107,7 @@ Julien-decision on whether to ship with or without the toggle. Default recommend
 2. Publish a `latest.json` pointing at v1.8.9 (the last pre-migration version) so existing installs that auto-update roll back.
 3. Announce in #support channel (Discord/etc): "Roll back to v1 via app menu → Check for Updates, then re-install v1.8.9 from releases page."
 4. Create a hotfix branch from `v1.8.9` tag for any critical .org-backend-only fixes while we regroup.
-5. Debug v2 in staging; re-release when fixed.
+5. Debug v2 against the dev backend; re-release when fixed.
 
 ### 3.2 "The new build is broken for a subset (e.g. users with provisional features)"
 
@@ -137,7 +137,7 @@ Julien-decision on whether to ship with or without the toggle. Default recommend
 > [!IMPORTANT] Do not ship v2.0.0 until every box is ticked
 
 - [ ] All items in [[08-testing-strategy#Manual QA checklist]] green on both macOS + Windows
-- [ ] Golden replay fixtures green against staging AND production
+- [ ] Production smoke test green ([[08-testing-strategy]] §6) — golden replay deferred
 - [ ] `grep -r 'console.log.*token\|console.log.*password'` returns zero hits
 - [ ] `grep -r 'PHPSESSID\|xmlrpc\|xml-rpc\|methodCall'` returns zero hits OR only inside `src/services/api/legacy/` (if dual-endpoint toggle shipped)
 - [ ] `package.json` version bumped via `npm run update-version`

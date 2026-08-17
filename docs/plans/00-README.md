@@ -21,7 +21,7 @@ status: implementation-complete
 5. [[05-upload-flow]] — check / commit / replace / history, all over REST
 6. [[06-my-uploads-integration]] — new "Upload history" tab using `GET /api/v1/my/uploads`
 7. [[07-error-mapping]] — XML-RPC error codes → `error_code` + HTTP status from REST
-8. [[08-testing-strategy]] — unit, integration against staging, golden-replay of prod uploads
+8. [[08-testing-strategy]] — unit tests, plus a manual smoke test against production
 9. [[09-migration-sequence]] — the actual step-by-step execution order
 10. [[10-risks-rollback]] — dual-endpoint preference, what can break, how to roll back
 
@@ -36,7 +36,7 @@ status: implementation-complete
 | 05 | [[05-upload-flow]] | ✅ written | ✅ shipped in steps 5-7 |
 | 06 | [[06-my-uploads-integration]] | ✅ written | ✅ shipped in step-8 |
 | 07 | [[07-error-mapping]] | ✅ written | ✅ shipped in step-10 (`ErrorBanner` + `errorCopy`) |
-| 08 | [[08-testing-strategy]] | ✅ written | 🟡 unit + helper tests landed (327 tests); golden-replay + staging integration deferred |
+| 08 | [[08-testing-strategy]] | ✅ written | 🟡 unit tests landed (416 tests); prod smoke test blocked on Kong routes; golden replay deferred |
 | 09 | [[09-migration-sequence]] | ✅ written | ✅ all 11 numbered steps committed |
 | 10 | [[10-risks-rollback]] | ✅ written | n/a (advisory doc; dual-endpoint toggle not shipped) |
 
@@ -64,7 +64,11 @@ status: implementation-complete
 > Zero XML-RPC calls in source — `xmlrpc.js` deleted entirely (859 LOC removed in step-7).
 > Test suite: **327/327 passing** across 84 suites.
 >
-> **Pending**: manual staging smoke test (`npm run tauri:dev` against staging.opensubtitles.com), then version bump + GH Actions release per CLAUDE.md sequence.
+> **Pending**: manual production smoke test via the environment switch (blocked on
+> Kong routes), then version bump + GH Actions release per CLAUDE.md sequence.
+> Staging was dropped as a test target — it shares the prod DB, runs no sidekiq
+> and has no dedicated opensearch indexes, so uploads there are never properly
+> saved. See [[08-testing-strategy]] §6.
 >
 > Dual-endpoint toggle ([[10-risks-rollback]]) **NOT shipped** — optional follow-up if the deprecation period needs a legacy fallback.
 

@@ -24,20 +24,21 @@ status: implementation-mostly-done
 >
 > Test suite: **327/327 passing**. `xmlrpc.js` fully deleted (859 LOC).
 >
-> Unchecked items below are **manual / staging-environment items** that
+> Unchecked items below are **manual, live-backend items** that
 > the in-process implementation can't tick: live smoke tests via
 > `npm run tauri:dev`, baseline-vs-.org comparison, multi-CD upload
 > linking, and the Step 12 release sequence.
 
 > [!INFO] Purpose
-> The actual step-by-step execution order. Each step is an atomic commit with tests. Ordered so that main branch is green and usable (against staging) after every step.
+> The actual step-by-step execution order. Each step is an atomic commit with tests. Ordered so that main branch is green and usable after every step.
 
 ## Principles
 
 1. **One endpoint per commit** — easy to bisect
 2. **Old + new live side-by-side** until the last commit deletes the XML-RPC path
 3. **Every commit is releasable** — if we stop mid-sequence, the app still works (some features may use old XML-RPC, others new REST, but never broken)
-4. **Staging smoke test after every commit** — per [[08-testing-strategy#Manual QA]]
+4. **Manual QA after every commit** — per [[08-testing-strategy#Manual QA]]. The
+   full production smoke test (§6) runs once before release, not per commit.
 5. **No version bumps mid-sequence** — single version bump at the end when shipping as v2.0.0
 
 ## Sequence
@@ -112,7 +113,7 @@ status: implementation-mostly-done
 - [x] **4.6** — Update `src/components/LoginDialog.jsx` — no MD5 step, pass plaintext.
 - [x] **4.7** — Delete `src/services/sessionManager.js` (merged into authService).
 - [x] **4.8** — Unit tests — state machine coverage per [[08-testing-strategy#Unit tests auth state machine]].
-- [ ] **4.9** — Manual staging test: login + restart + logout.
+- [ ] **4.9** — Manual test against the dev backend: login + restart + logout.
 - [x] **4.10** — Commit: `feat: swap PHPSESSID+MD5 auth for JWT Bearer`
 
 ### Step 5 — Movie guess
@@ -146,7 +147,7 @@ status: implementation-mostly-done
   - [x] Update all callers in `SubtitleUploader.jsx` that read response fields
 - [x] **7.3** — Delete `XmlRpcService.uploadSubtitles` + `buildUploadSubtitlesXml` + `escapeXmlContent`.
 - [ ] **7.4** — Multi-CD: implement sequential upload with `parent_subtitle_id` ([[05-upload-flow#Multi-CD in Phase 2]]).
-- [ ] **7.5** — Manual test: full round-trip on staging — log in, drop file, commit, verify on server.
+- [ ] **7.5** — Manual test: full round-trip on the dev backend — log in, drop file, commit, verify on server.
 - [x] **7.6** — Commit: `feat: migrate upload commit to REST /subtitles/upload`
 
 ### Step 8 — Upload history tab
@@ -201,7 +202,9 @@ status: implementation-mostly-done
   - [x] `npm run generate-changelog`
   - [x] Commit + tag `v2.0.0`
   - [x] `gh workflow run "Build Desktop Apps" --field create_release=true`
-- [x] **12.6** — Final staging smoke + golden replay green.
+- [ ] **12.6** — Final production smoke test green ([[08-testing-strategy]] §6),
+      blocked on Kong routes. Golden replay deferred. Previously ticked as
+      "staging smoke green"; staging was never a valid target (§6).
 
 ## Dual-endpoint preference (optional parallel workstream)
 

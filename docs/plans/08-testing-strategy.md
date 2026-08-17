@@ -9,7 +9,7 @@ status: locked
 # 08 — Testing Strategy
 
 > [!INFO] Purpose
-> Nothing ships without this passing. Coverage targets: every REST client method has a unit test; every user-facing flow has an integration test against staging; 5 representative prod uploads replay green.
+> Nothing ships without this passing. Coverage targets: every REST client method has a unit test; every user-facing flow is exercised by the manual production smoke test in §6.
 
 ## 1. Test stack
 
@@ -20,7 +20,7 @@ Current:
 Adding:
 - `msw` (Mock Service Worker) — intercepts `fetch` for unit tests with realistic HTTP
 - `@testing-library/react` + `happy-dom` — component tests
-- Golden-replay harness — a small script replay real prod uploads against staging and diff the server response
+- Golden-replay harness — deferred, see §7; it cannot target staging
 
 ## 2. Unit tests — REST client
 
@@ -177,53 +177,47 @@ test('check with quota_exceeded goes to error with quota details', async () => {
 });
 ```
 
-## 6. Integration against staging
+## 6. Smoke test against production
 
-File: `tests/integration/staging.test.js`
+Staging is not a viable target. It runs against the **production database**, it
+does **not run sidekiq**, and it has **no dedicated opensearch indexes**. An
+upload performed there is never properly saved or indexed — the test would look
+green while exercising less than it claims, and it writes into the prod DB
+regardless. That is the risk of production without the fidelity.
 
-Runs ONLY with `STAGING_TEST=1 STAGING_JWT=<jwt> npm test`. Hits real `https://staging.opensubtitles.com/api/v1/*`.
+The smoke test therefore runs against production, using the environment switch
+(design: `docs/superpowers/specs/2026-08-14-env-switch-design.md`).
 
-```js
-import test from 'node:test';
-if (!process.env.STAGING_TEST) {
-  test.skip('Staging integration — set STAGING_TEST=1 to run');
-} else {
-  describe('Staging E2E', () => {
-    test('guess → check → commit → history → delete round-trip', async () => {
-      const token = process.env.STAGING_JWT;
-      authStore.setToken(token);
+**Prerequisite:** the API is already deployed in production; the **Kong routes**
+must exist before this can run.
 
-      // 1. guess
-      const guess = await uploadApi.guess('Dune.2021.720p.BluRay.srt', null);
-      assert(guess.best_guess || guess.candidates.length > 0);
+**Traceability.** Test uploads are identifiable two independent ways: by
+subtitle source and upload date, and by the `User-Agent` string — `OpenSubtitles
+Uploader PRO v2.0.0` (`src/utils/constants.js`), which no other build emits.
 
-      // 2. analyze (client-side only)
-      const payload = await SubtitleUploadService.analyze({
-        subtitleFile: new File([FAKE_SRT_BYTES], 'staging-test.srt'),
-      });
-      payload.idmovieimdb = guess.best_guess.imdbid;
-      payload.sublanguageid = 'eng';
+### Procedure
 
-      // 3. check
-      const check = await uploadApi.check(payload);
-      assert.equal(check.would_be_rejected, false);
+1. Build with the switch enabled: `VITE_ENV_SWITCH=true npm run tauri:build`
+2. Launch, set the header switch to **Production**, and log in.
+3. Upload one subtitle for a film already in the database. Confirm the response
+   carries a subtitle id and the entry appears under Upload history.
+4. Upload one subtitle for a title **not** in the database, using the
+   create-from-id flow ([[11-stub-feature-from-imdb-tmdb]]).
+5. Upload one episode subtitle, confirming it attaches to the episode and not to
+   the parent series.
+6. Delete each test upload through the app.
+7. Confirm server-side that the rows are gone and no orphaned features remain.
 
-      // 4. commit
-      const commit = await uploadApi.commit(payload);
-      assert(commit.subtitle_id);
-
-      // 5. history includes it
-      const history = await myUploadsApi.list({ perPage: 5 });
-      assert(history.data.some(s => s.subtitle_id === commit.subtitle_id));
-
-      // 6. delete it (cleanup)
-      await myUploadsApi.remove(commit.subtitle_id);
-    });
-  });
-}
-```
+Anything that fails here blocks the release.
 
 ## 7. Golden replay
+
+> [!WARNING] Deferred — cannot target staging
+> This section still describes replaying against staging, which is not viable
+> for the reasons in §6 (prod database, no sidekiq, no dedicated opensearch
+> indexes). The harness was never built. If it is revived, it must target
+> production behind the environment switch and reuse §6's traceability and
+> cleanup steps, or run against a backend that is genuinely isolated.
 
 A small harness that takes real prod upload requests (anonymized) and replays them through the new client against staging, asserting server response shapes match expectations.
 
@@ -283,9 +277,9 @@ Julien can extract these from prod logs; we anonymize + commit as fixtures.
 - [ ] `npm run lint` clean
 - [ ] `npm run typecheck` clean
 - [ ] `npm test` — all green (unit + hook + component)
-- [ ] `STAGING_TEST=1 npm test` — all green (staging integration)
+- [ ] Manual production smoke test (§6) — all seven steps pass
 - [ ] `npm run tauri:dev` — manual upload end-to-end:
-  - [ ] Login with staging account
+  - [ ] Login with a test account on production
   - [ ] Upload `.srt` + `.mkv` — commit returns subtitle_id + download URL
   - [ ] History tab shows new upload
   - [ ] Edit release_name, save, reload → persists
@@ -311,24 +305,11 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-
-  staging-smoke:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
-      - run: npm ci
-      - run: STAGING_TEST=1 npm test
-        env:
-          STAGING_JWT: ${{ secrets.STAGING_TEST_JWT }}
-          VITE_OPENSUBTITLES_API_KEY: ${{ secrets.STAGING_API_KEY }}
 ```
 
-> [!WARNING] Secret handling
-> `STAGING_TEST_JWT` must be a test account's JWT with "trusted uploader" level. Rotate quarterly. Never log it — wrap every staging call with `logSensitiveData`.
+CI runs unit tests only. The production smoke test (§6) is manual and
+deliberately not automated: it writes real rows into the production database,
+so it needs a human deciding when to run it and confirming the cleanup.
 
 ## 10. Performance bar
 
@@ -358,7 +339,6 @@ Current repo has tests in `tests/`. Audit + keep the ones that cover surviving l
 - [ ] `tests/services/authService.test.js` — state machine
 - [ ] `tests/components/` — LoginDialog, UploadForm, UploadHistory
 - [ ] `tests/hooks/useUpload.test.js`
-- [ ] `tests/integration/staging.test.js` (guarded by env var)
-- [ ] `tests/golden/` — 5 fixtures + replay runner
-- [ ] CI workflow: unit on every push, staging on PR
+- [ ] `tests/golden/` — 5 fixtures + replay runner (deferred, §7)
+- [ ] CI workflow: unit tests on every push
 - [ ] Manual QA checklist in PR template

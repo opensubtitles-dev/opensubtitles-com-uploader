@@ -336,8 +336,8 @@ estimate.
 Per `docs/three-brain-out/2026-05-04-uploader-v2-deep-analysis/roadmap.md`
 Phase E:
 
-- Forked app uploads a real subtitle through `staging.opensubtitles.com`
-  end-to-end with JWT auth.
+- Forked app uploads a real subtitle end-to-end with JWT auth, against the dev
+  backend and then production via the environment switch.
 - Duplicate detection works (re-uploading the same file shows "already in
   DB").
 - Replace from history works.

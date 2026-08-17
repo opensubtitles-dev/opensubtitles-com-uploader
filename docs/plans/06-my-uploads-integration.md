@@ -246,7 +246,7 @@ Each user-facing string behind an i18n key. The existing app doesn't seem to hav
 - [ ] Empty / loading / error states
 - [ ] Pagination
 - [ ] Relative-time formatting
-- [ ] Manual smoke on staging (golden replay in [[08-testing-strategy]])
+- [ ] Manual smoke on production (procedure in [[08-testing-strategy]] §6)
 
 ## 14. Follow-ups after Phase 2
 

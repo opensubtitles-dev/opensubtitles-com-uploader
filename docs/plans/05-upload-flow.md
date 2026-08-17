@@ -327,7 +327,7 @@ Maintain a single `UploadStepper` component with these phases visible:
 
 ```
 1. Start app: npm run tauri:dev
-2. Config → set backend to staging, log in with test account
+2. Header switch → select Production, log in with a test account
 3. Drop any .srt + .mkv pair
 4. Confirm:
    - Analyze completes (spinner → feature card)
