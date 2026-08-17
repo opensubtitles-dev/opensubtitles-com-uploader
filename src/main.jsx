@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import { validateApiConfiguration } from './utils/constants.js';
-import { migrateLegacyKeys } from './utils/storageKeys.js';
+import { migrateLegacyKeys, purgeUnscopedKeys } from './utils/storageKeys.js';
 import './index.css';
 import './preload.js'; // Preload WASM components for faster loading
 
@@ -26,6 +26,12 @@ if (isTauriEnvironment) {
 // MUST run before any service module reads from localStorage.
 if (migrateLegacyKeys()) {
   console.log('🧹 Migrated legacy localStorage keys to .com REST shape');
+}
+
+// One-shot purge of pre-2.0.0 unscoped auth/cache keys, from before keys
+// were namespaced per backend environment. Users log in again once.
+if (purgeUnscopedKeys()) {
+  console.log('🧹 Purged unscoped localStorage keys (pre-2.0.0)');
 }
 
 // Validate API configuration on startup

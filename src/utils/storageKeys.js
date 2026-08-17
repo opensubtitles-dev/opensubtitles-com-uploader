@@ -69,6 +69,17 @@ export const LEGACY_KEYS = Object.freeze([
 ]);
 
 /**
+ * Default storage backend for callers that don't inject one (production
+ * call sites). Centralized here so migrateLegacyKeys and purgeUnscopedKeys
+ * share exactly one definition of "what storage do we default to" — two
+ * divergent inline fallbacks would be a bug waiting to happen.
+ *
+ * @returns {Storage|null}
+ */
+const getDefaultStorage = () =>
+  typeof globalThis !== 'undefined' && globalThis.localStorage ? globalThis.localStorage : null;
+
+/**
  * One-shot purge of legacy keys. Idempotent — the marker prevents re-runs.
  *
  * Call at app startup (before any auth / cache code that might read these
@@ -78,7 +89,7 @@ export const LEGACY_KEYS = Object.freeze([
  * @returns {boolean} true if migration ran, false if it was already done
  */
 export function migrateLegacyKeys(storage) {
-  const store = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  const store = storage ?? getDefaultStorage();
   if (!store) return false;
 
   try {
@@ -98,4 +109,66 @@ export function migrateLegacyKeys(storage) {
     console.warn('[storageKeys] migrateLegacyKeys failed:', err);
     return false;
   }
+}
+
+// Keys that are unscoped on purpose and must survive the purge.
+const PURGE_EXEMPT = Object.freeze([
+  BACKEND_PREF_KEY,
+  'osdb_migration_v2_done',
+  'osdb_migration_v3_done',
+  'opensubtitles_remembered_username',
+  'opensubtitles_debug_mode',
+]);
+
+// An unscoped key is one whose namespace token is NOT followed by a valid
+// environment id.
+const UNSCOPED_PATTERNS = Object.freeze([
+  /^osdb_com_(?!prod_|dev_)/,
+  /^rest_(?!prod_|dev_)/,
+  /^opensubtitles_(?!prod_|dev_)/,
+]);
+
+/**
+ * One-shot removal of auth and cache keys written by pre-2.0.0 builds,
+ * before keys were scoped per environment. There is no reliable way to tell
+ * which backend those entries came from, so they are dropped rather than
+ * guessed at. Users log in again once.
+ *
+ * Idempotent — the MIGRATION_V3_DONE marker prevents re-runs.
+ * MUST run before any service module reads from localStorage.
+ *
+ * @param {Storage} [storage=localStorage] injectable for tests
+ * @returns {boolean} true if the purge ran
+ */
+export function purgeUnscopedKeys(storage = getDefaultStorage()) {
+  if (!storage || typeof storage.getItem !== 'function') return false;
+
+  try {
+    if (storage.getItem(STORAGE_KEYS.MIGRATION_V3_DONE)) return false;
+  } catch {
+    return false;
+  }
+
+  const doomed = [];
+  for (let i = 0; i < storage.length; i++) {
+    const key = storage.key(i);
+    if (!key || PURGE_EXEMPT.includes(key)) continue;
+    if (UNSCOPED_PATTERNS.some(re => re.test(key))) doomed.push(key);
+  }
+
+  for (const key of doomed) {
+    try {
+      storage.removeItem(key);
+    } catch {
+      // A single failed removal must not abort the purge.
+    }
+  }
+
+  try {
+    storage.setItem(STORAGE_KEYS.MIGRATION_V3_DONE, '1');
+  } catch {
+    return false;
+  }
+
+  return true;
 }

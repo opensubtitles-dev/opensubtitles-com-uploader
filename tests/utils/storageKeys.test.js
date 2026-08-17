@@ -5,6 +5,7 @@ import {
   CACHE_PREFIXES,
   LEGACY_KEYS,
   migrateLegacyKeys,
+  purgeUnscopedKeys,
 } from '../../src/utils/storageKeys.js';
 
 class MemoryStorage {
@@ -24,6 +25,12 @@ class MemoryStorage {
     return this._m.has(k);
   }
   size() {
+    return this._m.size;
+  }
+  key(i) {
+    return Array.from(this._m.keys())[i] ?? null;
+  }
+  get length() {
     return this._m.size;
   }
 }
@@ -188,5 +195,67 @@ describe('environment-scoped keys', () => {
     // prefix shape, not the live envId) would keep passing.
     assert.deepEqual(STORAGE_KEYS, buildStorageKeys(getActiveEnvironmentId()));
     assert.deepEqual(CACHE_PREFIXES, buildCachePrefixes(getActiveEnvironmentId()));
+  });
+});
+
+describe('purgeUnscopedKeys', () => {
+  const seed = () =>
+    new MemoryStorage({
+      osdb_com_jwt: 'eyJ-old',
+      osdb_com_user: '{"name":"alice"}',
+      osdb_com_login_time: '123',
+      rest_languages_cache: '[]',
+      'rest_features_cache:imdb:123': '{}',
+      opensubtitles_guessit_cache: '{}',
+      // must survive
+      osdb_com_dev_jwt: 'eyJ-scoped',
+      rest_dev_languages_cache: '[]',
+      osdb_backend: 'dev',
+      opensubtitles_remembered_username: 'alice',
+      opensubtitles_debug_mode: 'true',
+    });
+
+  test('removes unscoped auth keys', () => {
+    const s = seed();
+    purgeUnscopedKeys(s);
+    assert.equal(s.getItem('osdb_com_jwt'), null);
+    assert.equal(s.getItem('osdb_com_user'), null);
+    assert.equal(s.getItem('osdb_com_login_time'), null);
+  });
+
+  test('removes unscoped cache entries from both cache systems', () => {
+    const s = seed();
+    purgeUnscopedKeys(s);
+    assert.equal(s.getItem('rest_languages_cache'), null);
+    assert.equal(s.getItem('rest_features_cache:imdb:123'), null);
+    assert.equal(s.getItem('opensubtitles_guessit_cache'), null);
+  });
+
+  test('leaves scoped keys alone', () => {
+    const s = seed();
+    purgeUnscopedKeys(s);
+    assert.equal(s.getItem('osdb_com_dev_jwt'), 'eyJ-scoped');
+    assert.equal(s.getItem('rest_dev_languages_cache'), '[]');
+  });
+
+  test('leaves deliberately-unscoped keys alone', () => {
+    const s = seed();
+    purgeUnscopedKeys(s);
+    assert.equal(s.getItem('osdb_backend'), 'dev');
+    assert.equal(s.getItem('opensubtitles_remembered_username'), 'alice');
+    assert.equal(s.getItem('opensubtitles_debug_mode'), 'true');
+  });
+
+  test('sets the marker and is idempotent', () => {
+    const s = seed();
+    assert.equal(purgeUnscopedKeys(s), true);
+    assert.equal(s.getItem('osdb_migration_v3_done'), '1');
+    s.setItem('osdb_com_jwt', 'snuck-back-in');
+    assert.equal(purgeUnscopedKeys(s), false);
+    assert.equal(s.getItem('osdb_com_jwt'), 'snuck-back-in');
+  });
+
+  test('returns false when no storage is available', () => {
+    assert.equal(purgeUnscopedKeys(null), false);
   });
 });
