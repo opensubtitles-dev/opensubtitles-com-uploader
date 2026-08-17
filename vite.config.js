@@ -28,9 +28,16 @@ export default defineConfig({
 
   // Define global constants for embedded API keys and polyfills
   define: {
-    __EMBEDDED_OPENSUBTITLES_API_KEY__: JSON.stringify(
-      process.env.OPENSUBTITLES_API_KEY || process.env.VITE_OPENSUBTITLES_API_KEY || ''
+    __EMBEDDED_OPENSUBTITLES_API_KEY_PROD__: JSON.stringify(
+      process.env.OPENSUBTITLES_API_KEY_PROD || process.env.VITE_OPENSUBTITLES_API_KEY_PROD || ''
     ),
+    __EMBEDDED_OPENSUBTITLES_API_KEY_DEV__: JSON.stringify(
+      process.env.OPENSUBTITLES_API_KEY_DEV ||
+        process.env.VITE_OPENSUBTITLES_API_KEY_DEV ||
+        process.env.VITE_OPENSUBTITLES_API_KEY ||
+        ''
+    ),
+    __ENV_SWITCH_ENABLED__: JSON.stringify(process.env.VITE_ENV_SWITCH || ''),
     global: 'globalThis',
   },
 
