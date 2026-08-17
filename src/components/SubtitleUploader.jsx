@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { Settings, HelpCircle, Sun, Moon, AlertTriangle, Lightbulb, History } from 'lucide-react';
+import EnvironmentSwitch from './EnvironmentSwitch.jsx';
 
 // Import logo assets
 import logoWhite from '../assets/os_logo_white_512x512.png';
@@ -2488,6 +2489,7 @@ function SubtitleUploaderInner() {
             <div className="flex flex-col items-end gap-2 shrink-0">
               <UserProfile />
               <div className="flex items-center gap-1">
+                <EnvironmentSwitch />
                 <a
                   href="#/history"
                   className="btn btn-ghost btn-sm gap-2"
