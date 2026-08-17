@@ -207,9 +207,18 @@ describe('purgeUnscopedKeys', () => {
       rest_languages_cache: '[]',
       'rest_features_cache:imdb:123': '{}',
       opensubtitles_guessit_cache: '{}',
-      // must survive
+      // must survive — dev-scoped
       osdb_com_dev_jwt: 'eyJ-scoped',
       rest_dev_languages_cache: '[]',
+      opensubtitles_dev_guessit_cache: '{}',
+      // must survive — prod-scoped. 'prod' is the default, always-on
+      // environment (getActiveEnvironmentId() falls back to it when the
+      // switch is disabled), so a lookahead regression here is the
+      // highest-risk failure this purge can cause: it would silently
+      // log out every production user on every launch.
+      osdb_com_prod_jwt: 'eyJ-scoped-prod',
+      rest_prod_languages_cache: '[]',
+      opensubtitles_prod_guessit_cache: '{}',
       osdb_backend: 'dev',
       opensubtitles_remembered_username: 'alice',
       opensubtitles_debug_mode: 'true',
@@ -231,11 +240,26 @@ describe('purgeUnscopedKeys', () => {
     assert.equal(s.getItem('opensubtitles_guessit_cache'), null);
   });
 
-  test('leaves scoped keys alone', () => {
+  test('leaves dev-scoped keys alone', () => {
     const s = seed();
     purgeUnscopedKeys(s);
     assert.equal(s.getItem('osdb_com_dev_jwt'), 'eyJ-scoped');
     assert.equal(s.getItem('rest_dev_languages_cache'), '[]');
+    assert.equal(s.getItem('opensubtitles_dev_guessit_cache'), '{}');
+  });
+
+  // 'prod' is the default, always-on environment: with the dev/prod switch
+  // disabled, getActiveEnvironmentId() always resolves to 'prod'. A
+  // narrowed lookahead (e.g. matching only 'dev_') or a prod-side typo
+  // would delete every user's production session on every launch, and
+  // without this test the suite would stay green. Covers all three
+  // namespaces the purge patterns scan.
+  test('leaves prod-scoped keys alone', () => {
+    const s = seed();
+    purgeUnscopedKeys(s);
+    assert.equal(s.getItem('osdb_com_prod_jwt'), 'eyJ-scoped-prod');
+    assert.equal(s.getItem('rest_prod_languages_cache'), '[]');
+    assert.equal(s.getItem('opensubtitles_prod_guessit_cache'), '{}');
   });
 
   test('leaves deliberately-unscoped keys alone', () => {
@@ -257,5 +281,43 @@ describe('purgeUnscopedKeys', () => {
 
   test('returns false when no storage is available', () => {
     assert.equal(purgeUnscopedKeys(null), false);
+  });
+
+  // main.jsx calls purgeUnscopedKeys() unguarded at module top level, before
+  // the app renders. A throw from the scan itself (not just an individual
+  // removeItem) must never propagate, or it aborts app startup entirely.
+  test('does not throw and returns false when storage.length throws', () => {
+    const broken = {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+      key: () => null,
+      get length() {
+        throw new Error('SecurityError: storage access blocked');
+      },
+    };
+    assert.doesNotThrow(() => {
+      assert.equal(purgeUnscopedKeys(broken), false);
+    });
+  });
+
+  test('does not throw and returns false when storage.key() throws', () => {
+    const broken = {
+      _m: new Map([['osdb_com_jwt', 'eyJ-old']]),
+      getItem(k) {
+        return this._m.has(k) ? this._m.get(k) : null;
+      },
+      setItem() {},
+      removeItem() {},
+      get length() {
+        return this._m.size;
+      },
+      key() {
+        throw new Error('SecurityError: storage access blocked');
+      },
+    };
+    assert.doesNotThrow(() => {
+      assert.equal(purgeUnscopedKeys(broken), false);
+    });
   });
 });

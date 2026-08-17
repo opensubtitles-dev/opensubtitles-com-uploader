@@ -143,32 +143,35 @@ const UNSCOPED_PATTERNS = Object.freeze([
 export function purgeUnscopedKeys(storage = getDefaultStorage()) {
   if (!storage || typeof storage.getItem !== 'function') return false;
 
+  // Whole-body guard, mirroring migrateLegacyKeys: storage.length / .key(i)
+  // are just as capable of throwing (quota, disabled storage, a hostile or
+  // unusual Storage-like object) as getItem/setItem are, and this function
+  // is called unguarded at main.jsx module top level, before the app
+  // renders. A scan-phase throw must never propagate and abort startup.
   try {
     if (storage.getItem(STORAGE_KEYS.MIGRATION_V3_DONE)) return false;
-  } catch {
-    return false;
-  }
 
-  const doomed = [];
-  for (let i = 0; i < storage.length; i++) {
-    const key = storage.key(i);
-    if (!key || PURGE_EXEMPT.includes(key)) continue;
-    if (UNSCOPED_PATTERNS.some(re => re.test(key))) doomed.push(key);
-  }
-
-  for (const key of doomed) {
-    try {
-      storage.removeItem(key);
-    } catch {
-      // A single failed removal must not abort the purge.
+    const doomed = [];
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
+      if (!key || PURGE_EXEMPT.includes(key)) continue;
+      if (UNSCOPED_PATTERNS.some(re => re.test(key))) doomed.push(key);
     }
-  }
 
-  try {
+    for (const key of doomed) {
+      try {
+        storage.removeItem(key);
+      } catch {
+        // A single failed removal must not abort the purge.
+      }
+    }
+
     storage.setItem(STORAGE_KEYS.MIGRATION_V3_DONE, '1');
-  } catch {
+    return true;
+  } catch (err) {
+    // localStorage might be disabled (private mode, quota, etc.) — never throw
+    // eslint-disable-next-line no-console
+    console.warn('[storageKeys] purgeUnscopedKeys failed:', err);
     return false;
   }
-
-  return true;
 }
