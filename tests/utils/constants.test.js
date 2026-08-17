@@ -60,7 +60,7 @@ describe('normalizeBaseUrl', () => {
   });
 });
 
-import { getActiveEnvironment } from '../../src/config/environments.js';
+import { getActiveEnvironment, getActiveEnvironmentId } from '../../src/config/environments.js';
 import { OPENSUBTITLES_BASE_URL, API_ENDPOINTS } from '../../src/utils/constants.js';
 
 describe('active environment wiring', () => {
@@ -77,7 +77,7 @@ describe('active environment wiring', () => {
   });
 });
 
-import { buildCacheKeys } from '../../src/utils/constants.js';
+import { buildCacheKeys, CACHE_KEYS } from '../../src/utils/constants.js';
 
 describe('environment-scoped CACHE_KEYS', () => {
   test('cache keys carry the environment as an infix', () => {
@@ -115,5 +115,16 @@ describe('environment-scoped CACHE_KEYS', () => {
 
   test('prod and dev cache keys never collide', () => {
     assert.notEqual(buildCacheKeys('dev').FEATURES_CACHE, buildCacheKeys('prod').FEATURES_CACHE);
+  });
+
+  test('the exported CACHE_KEYS singleton reflects the active environment', () => {
+    // Guards the wiring line itself (constants.js: `export const CACHE_KEYS =
+    // buildCacheKeys(getActiveEnvironmentId())`), not just the builder: if
+    // that line were ever hardcoded to a literal environment id, or lost its
+    // scoping in a bad merge, dev and prod would silently collapse onto the
+    // same cache keys while every other assertion in this block (which only
+    // exercises the builder directly, not the exported singleton) would
+    // keep passing.
+    assert.deepEqual(CACHE_KEYS, buildCacheKeys(getActiveEnvironmentId()));
   });
 });

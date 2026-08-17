@@ -124,6 +124,7 @@ describe('migrateLegacyKeys', () => {
 });
 
 import { buildStorageKeys, buildCachePrefixes } from '../../src/utils/storageKeys.js';
+import { getActiveEnvironmentId } from '../../src/config/environments.js';
 
 describe('environment-scoped keys', () => {
   test('auth keys carry the environment as an infix', () => {
@@ -176,5 +177,16 @@ describe('environment-scoped keys', () => {
     for (const v of Object.values(buildCachePrefixes('prod'))) {
       assert.match(v, /^rest_/);
     }
+  });
+
+  test('the exported STORAGE_KEYS and CACHE_PREFIXES singletons reflect the active environment', () => {
+    // Guards the wiring itself, not just the builders: if STORAGE_KEYS or
+    // CACHE_PREFIXES were ever hardcoded to a literal environment (or lost
+    // their scoping in a bad merge), dev and prod would silently collapse
+    // onto the same storage keys — the exact failure this task exists to
+    // prevent — while every other assertion in this file (which only checks
+    // prefix shape, not the live envId) would keep passing.
+    assert.deepEqual(STORAGE_KEYS, buildStorageKeys(getActiveEnvironmentId()));
+    assert.deepEqual(CACHE_PREFIXES, buildCachePrefixes(getActiveEnvironmentId()));
   });
 });
