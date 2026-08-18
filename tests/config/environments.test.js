@@ -23,9 +23,18 @@ class MemoryStorage {
   }
 }
 
+// A registry where dev has a usable baseUrl — for tests that exercise
+// storage/switch resolution independent of whether this particular build
+// has a dev URL configured (the real ENVIRONMENTS.dev.baseUrl depends on
+// VITE_OPENSUBTITLES_BASE_URL, which is unset in the unit-test process).
+const DEV_CONFIGURED = {
+  ...ENVIRONMENTS,
+  dev: { ...ENVIRONMENTS.dev, baseUrl: 'https://osdev.ngrok.dev/api/v1' },
+};
+
 describe('resolveEnvironmentId', () => {
   test('empty storage with switch enabled defaults to dev', () => {
-    assert.equal(resolveEnvironmentId(new MemoryStorage(), true), 'dev');
+    assert.equal(resolveEnvironmentId(new MemoryStorage(), true, DEV_CONFIGURED), 'dev');
   });
 
   test('empty storage with switch disabled defaults to prod', () => {
@@ -34,7 +43,7 @@ describe('resolveEnvironmentId', () => {
 
   test('stored dev is honoured when the switch is enabled', () => {
     const s = new MemoryStorage({ [BACKEND_PREF_KEY]: 'dev' });
-    assert.equal(resolveEnvironmentId(s, true), 'dev');
+    assert.equal(resolveEnvironmentId(s, true, DEV_CONFIGURED), 'dev');
   });
 
   test('GATING INVARIANT: stored dev is ignored when the switch is disabled', () => {
@@ -44,18 +53,29 @@ describe('resolveEnvironmentId', () => {
 
   test('unknown stored id falls back to the default', () => {
     const s = new MemoryStorage({ [BACKEND_PREF_KEY]: 'staging' });
-    assert.equal(resolveEnvironmentId(s, true), 'dev');
+    assert.equal(resolveEnvironmentId(s, true, DEV_CONFIGURED), 'dev');
     assert.equal(resolveEnvironmentId(s, false), 'prod');
   });
 
   test('legacy dual-endpoint values (com/org) are not valid ids', () => {
     const s = new MemoryStorage({ [BACKEND_PREF_KEY]: 'com' });
-    assert.equal(resolveEnvironmentId(s, true), 'dev');
+    assert.equal(resolveEnvironmentId(s, true, DEV_CONFIGURED), 'dev');
   });
 
   test('missing storage does not throw', () => {
     assert.equal(resolveEnvironmentId(null, false), 'prod');
-    assert.equal(resolveEnvironmentId(undefined, true), 'dev');
+    assert.equal(resolveEnvironmentId(undefined, true, DEV_CONFIGURED), 'dev');
+  });
+
+  test('USABILITY GUARD: switch enabled but dev base URL unconfigured falls back to prod', () => {
+    const envs = { ...ENVIRONMENTS, dev: { ...ENVIRONMENTS.dev, baseUrl: '' } };
+    assert.equal(resolveEnvironmentId(new MemoryStorage(), true, envs), 'prod');
+  });
+
+  test('USABILITY GUARD: stored dev preference falls back to prod when dev base URL is unconfigured', () => {
+    const envs = { ...ENVIRONMENTS, dev: { ...ENVIRONMENTS.dev, baseUrl: '' } };
+    const s = new MemoryStorage({ [BACKEND_PREF_KEY]: 'dev' });
+    assert.equal(resolveEnvironmentId(s, true, envs), 'prod');
   });
 });
 
@@ -110,11 +130,14 @@ describe('setActiveEnvironment', () => {
   });
 
   test('selects a different environment when switch enabled', () => {
-    // Empty storage with switchEnabled:true means current env is 'dev' (the default)
-    // So we select 'prod' to change to a different environment
+    // Empty storage with switchEnabled:true resolves to 'prod' here: this
+    // process has no VITE_OPENSUBTITLES_BASE_URL, so the real ENVIRONMENTS.dev
+    // has no usable baseUrl and the resolver's usability guard falls back to
+    // 'prod' (see resolveEnvironmentId). So we select 'dev' to change to a
+    // different environment.
     const storage = new MemoryStorage();
     let reloadCallCount = 0;
-    const result = setActiveEnvironment('prod', {
+    const result = setActiveEnvironment('dev', {
       storage,
       switchEnabled: true,
       reload: () => {
@@ -123,7 +146,7 @@ describe('setActiveEnvironment', () => {
     });
     assert.equal(result, true);
     assert.equal(reloadCallCount, 1);
-    assert.equal(storage.getItem(BACKEND_PREF_KEY), 'prod');
+    assert.equal(storage.getItem(BACKEND_PREF_KEY), 'dev');
   });
 
   test('no-op when selecting already-active environment', () => {
@@ -154,8 +177,9 @@ describe('setActiveEnvironment', () => {
       },
     };
     let reloadCalled = false;
-    // Use 'prod' since empty storage defaults to 'dev'
-    const result = setActiveEnvironment('prod', {
+    // Use 'dev' since empty storage defaults to 'prod' here (this process has
+    // no configured dev baseUrl — see the previous test for why).
+    const result = setActiveEnvironment('dev', {
       storage: throwingStorage,
       switchEnabled: true,
       reload: () => {

@@ -38,7 +38,16 @@ const DEV_KEY =
     ? __EMBEDDED_OPENSUBTITLES_API_KEY_DEV__
     : readEnv('VITE_OPENSUBTITLES_API_KEY_DEV') || readEnv('VITE_OPENSUBTITLES_API_KEY');
 
-const DEV_BASE_URL_RAW = readEnv('VITE_OPENSUBTITLES_BASE_URL');
+// Unlike PROD_KEY/DEV_KEY/SWITCH_ENABLED above, nothing wires this through
+// vite `define` — it is read as a globalThis property (not a bare
+// identifier) precisely so it stays inert in every real build. It exists so
+// tests can force a usable dev base URL the same way
+// storageKeysForcedDevWiring.test.js already forces SWITCH_ENABLED — without
+// it, the active environment can never genuinely resolve to 'dev' under
+// plain `node --test`, where `import.meta.env` is never populated.
+const DEV_BASE_URL_RAW =
+  (typeof globalThis !== 'undefined' && globalThis.__EMBEDDED_OPENSUBTITLES_BASE_URL_DEV__) ||
+  readEnv('VITE_OPENSUBTITLES_BASE_URL');
 
 export const SWITCH_ENABLED =
   (typeof __ENV_SWITCH_ENABLED__ !== 'undefined' && __ENV_SWITCH_ENABLED__ === 'true') ||
@@ -68,13 +77,22 @@ const VALID_IDS = Object.freeze(['prod', 'dev']);
  * 'prod', whatever storage says. A public build must never be dragged onto
  * the dev backend by a leftover preference from a tester build.
  *
+ * It also refuses to resolve to an environment with no usable `baseUrl`
+ * (§6 of the design doc: "Stored env id unknown or unselectable → fall back
+ * to the first-run default"). A switch-enabled build with no dev base URL
+ * configured — or a stored `'dev'` preference surviving into such a build —
+ * must land on 'prod', not on a backend that resolves to a bare path against
+ * the app's own origin.
+ *
  * @param {Storage|null} storage
  * @param {boolean} switchEnabled
+ * @param {object} [environments] environment registry, injectable for tests
  * @returns {'prod'|'dev'}
  */
-export function resolveEnvironmentId(storage, switchEnabled) {
+export function resolveEnvironmentId(storage, switchEnabled, environments = ENVIRONMENTS) {
   if (!switchEnabled) return 'prod';
-  const fallback = 'dev';
+  const devUsable = !!environments?.dev?.baseUrl;
+  const fallback = devUsable ? 'dev' : 'prod';
   if (!storage || typeof storage.getItem !== 'function') return fallback;
   let stored = null;
   try {
@@ -82,7 +100,9 @@ export function resolveEnvironmentId(storage, switchEnabled) {
   } catch {
     return fallback;
   }
-  return VALID_IDS.includes(stored) ? stored : fallback;
+  if (!VALID_IDS.includes(stored)) return fallback;
+  if (stored === 'dev' && !devUsable) return 'prod';
+  return stored;
 }
 
 /**

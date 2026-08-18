@@ -31,7 +31,15 @@
  *         object when nothing shadows them in scope).
  *      2. globalThis.localStorage.getItem('osdb_backend') — the stored
  *         preference, honoured only when SWITCH_ENABLED is true.
- *  - Setting both BEFORE importing storageKeys.js/constants.js isn't
+ *      3. A usable ENVIRONMENTS.dev.baseUrl — resolveEnvironmentId() falls
+ *         back to 'prod' when it isn't, per the design doc §6. Under plain
+ *         Node, `import.meta.env` is never populated, so the dev base URL
+ *         is normally always ''. `globalThis.__EMBEDDED_OPENSUBTITLES_BASE_URL_DEV__`
+ *         forces it the same way __ENV_SWITCH_ENABLED__ forces the switch —
+ *         without it 'dev' could never actually be reached here, and this
+ *         whole file would stop testing anything (the forced scenario would
+ *         coincide with the real, unforced 'prod' default).
+ *  - Setting all three BEFORE importing storageKeys.js/constants.js isn't
  *    enough on its own: ordinary imports are cached by Node's module
  *    loader, so if anything already imported these modules in this
  *    process, the *already-evaluated* singletons would be returned
@@ -65,10 +73,19 @@ describe('STORAGE_KEYS / CACHE_PREFIXES / CACHE_KEYS wiring, forced to the dev e
       '__ENV_SWITCH_ENABLED__'
     );
     const originalSwitch = globalThis.__ENV_SWITCH_ENABLED__;
+    const hadDevBaseUrlGlobal = Object.prototype.hasOwnProperty.call(
+      globalThis,
+      '__EMBEDDED_OPENSUBTITLES_BASE_URL_DEV__'
+    );
+    const originalDevBaseUrl = globalThis.__EMBEDDED_OPENSUBTITLES_BASE_URL_DEV__;
     const hadLocalStorage = Object.prototype.hasOwnProperty.call(globalThis, 'localStorage');
     const originalLocalStorage = globalThis.localStorage;
 
     globalThis.__ENV_SWITCH_ENABLED__ = 'true';
+    // Without this, ENVIRONMENTS.dev.baseUrl stays '' under plain Node and
+    // resolveEnvironmentId()'s usability guard would force 'prod' below,
+    // regardless of the forced switch/storage — see the file header.
+    globalThis.__EMBEDDED_OPENSUBTITLES_BASE_URL_DEV__ = 'https://osdev.ngrok.dev/api/v1';
     globalThis.localStorage = {
       // 'osdb_backend' mirrors BACKEND_PREF_KEY in config/environments.js.
       // Kept as a literal (not imported) — importing environments.js
@@ -122,6 +139,11 @@ describe('STORAGE_KEYS / CACHE_PREFIXES / CACHE_KEYS wiring, forced to the dev e
         globalThis.__ENV_SWITCH_ENABLED__ = originalSwitch;
       } else {
         delete globalThis.__ENV_SWITCH_ENABLED__;
+      }
+      if (hadDevBaseUrlGlobal) {
+        globalThis.__EMBEDDED_OPENSUBTITLES_BASE_URL_DEV__ = originalDevBaseUrl;
+      } else {
+        delete globalThis.__EMBEDDED_OPENSUBTITLES_BASE_URL_DEV__;
       }
       if (hadLocalStorage) {
         globalThis.localStorage = originalLocalStorage;
