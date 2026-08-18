@@ -17,7 +17,7 @@ tauri = { version = "2.6", features = [ "devtools"] }
 tauri-plugin-shell = "2.3"
 tauri-plugin-fs = "2.4"
 tauri-plugin-dialog = "2.3"
-tauri-plugin-http = "2.5"
+tauri-plugin-http = { version = "2.5", features = ["stream"] }
 tauri-plugin-updater = "2.9"
 tauri-plugin-process = "2.3"
 serde = { version = "1.0", features = ["derive"] }
