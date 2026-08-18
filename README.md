@@ -70,7 +70,8 @@ blockers are the usual cause.
 
 ### Prerequisites
 
-- **Node.js 18+** and npm (the test suite uses the built-in `node --test` runner)
+- **Node.js 22+** and npm — the test script passes a glob to the built-in `node --test`
+  runner, and glob expansion landed in Node 22
 - An **opensubtitles.com API key** — [register as a consumer](https://www.opensubtitles.com/en/consumers)
 
 ### Install
