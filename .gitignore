@@ -80,5 +80,8 @@ src/utils/embeddedConstants.js
 # Subagent-driven-development scratch workspace
 .superpowers/
 
+# claude-flow plugin working directory (per-user tooling)
+.claude-flow/
+
 # Obsidian vault settings (per-user)
 .obsidian/
