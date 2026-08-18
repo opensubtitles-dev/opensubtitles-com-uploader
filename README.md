@@ -24,6 +24,7 @@ opensubtitles.com REST API.
 ## ✨ Features
 
 ### Smart upload experience
+
 - **Drag & drop** — drop files or whole directories
 - **Automatic pairing** — matches videos to subtitles by filename similarity
 - **Language detection** — identifies subtitle language automatically
@@ -31,6 +32,7 @@ opensubtitles.com REST API.
 - **Batch processing** — many pairs at once
 
 ### Intelligent automation
+
 - **Video metadata extraction** — resolution, codec, bitrate, duration
 - **Episode detection** — season/episode numbering, attaching to the episode rather than the series
 - **Movie hash calculation** — OpenSubtitles-compatible hashes for precise matching
@@ -39,6 +41,7 @@ opensubtitles.com REST API.
 - **MKV subtitle extraction** — pulls embedded subtitle tracks out of MKV files
 
 ### User experience
+
 - **Modern UI** — DaisyUI on Tailwind, with dark/light theme detection
 - **Upload history** — review, edit and delete your uploads in-app
 - **Performance** — caching, retry logic and parallel processing
@@ -83,12 +86,12 @@ cp .env.example .env   # then fill in your keys
 
 All configuration lives in `.env`. See `.env.example` for the annotated version.
 
-| Variable | Purpose |
-|---|---|
-| `VITE_OPENSUBTITLES_API_KEY_PROD` | Production API key. Required for any build that can reach production. |
-| `VITE_OPENSUBTITLES_API_KEY_DEV` | API key for the dev backend. Only needed for builds that talk to it. |
-| `VITE_OPENSUBTITLES_BASE_URL` | Base URL of the **dev** backend, e.g. `https://osdev.ngrok.dev/api/v1`. Leave unset and the dev environment is not selectable. |
-| `VITE_ENV_SWITCH` | `true` shows the environment switch in the header. Leave unset for public builds. |
+| Variable                          | Purpose                                                                                                                                                                                                                                |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_OPENSUBTITLES_API_KEY_PROD` | Production API key. Required for any build that can reach production.                                                                                                                                                                  |
+| `VITE_OPENSUBTITLES_API_KEY_DEV`  | API key for the dev backend. Only needed for builds that talk to it.                                                                                                                                                                   |
+| `VITE_OPENSUBTITLES_BASE_URL`     | Base URL of the **dev** backend, e.g. `https://osdev.ngrok.dev/api/v1`. Leave unset and the dev environment is not selectable — the switch falls back to production, even if `VITE_ENV_SWITCH=true` or a stored preference says `dev`. |
+| `VITE_ENV_SWITCH`                 | `true` shows the environment switch in the header. Leave unset for public builds.                                                                                                                                                      |
 
 Production is **hard-wired** to `https://api.opensubtitles.com/api/v1` and is not
 configurable — only the dev URL is. The `/api/v1` suffix is appended if you omit it,
@@ -191,8 +194,14 @@ npm run update-version        # syncs package.json, constants.js, tauri.conf.jso
 npm run generate-changelog
 git add . && git commit -m "🚀 RELEASE: Version X.X.X - Description"
 git tag vX.X.X && git push && git push --tags
-gh workflow run "Build Desktop Apps" --field create_release=true
 ```
+
+`.github/workflows/build-desktop-apps.yml` triggers automatically on a pushed `v*` tag,
+so `git push --tags` above already starts the build — there is nothing further to run.
+The workflow also accepts a manual `gh workflow run "Build Desktop Apps"` (its
+`workflow_dispatch` trigger takes no inputs; a `--field` on that command is rejected),
+which is useful for rebuilding the current `main` without a new tag, but a tagged push
+is the normal release path.
 
 Every release needs `latest.json` (the Tauri updater manifest) alongside the platform
 installers — auto-updates break without it.
@@ -233,8 +242,11 @@ src/
 
 ## 🔒 Security
 
-- **No secrets in the repo.** Keys come from `.env` locally and are embedded at build
-  time for distribution. `src/utils/embeddedConstants.js` is generated and gitignored.
+- **No secrets in the repo.** Keys come from `.env` locally. At build time Vite's
+  `define` bakes them into the bundle as compile-time constants (`vite.config.js`),
+  with an `import.meta.env` fallback for the dev server (`src/config/environments.js`).
+  `src/utils/embeddedConstants.js` is also generated and gitignored, but nothing
+  imports it — it is not part of the live key-delivery path.
 - **Never log credentials.** Use `logSensitiveData()` from `src/utils/securityUtils.js`
   for anything token-shaped. Partial tokens count as exposure — do not log the first
   few characters of a key to "identify" it.
