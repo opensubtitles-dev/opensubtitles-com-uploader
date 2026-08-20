@@ -4,6 +4,7 @@ import {
   ENVIRONMENTS,
   BACKEND_PREF_KEY,
   resolveEnvironmentId,
+  buildEnvironments,
   buildSelectableList,
   setActiveEnvironment,
 } from '../../src/config/environments.js';
@@ -204,5 +205,59 @@ describe('setActiveEnvironment', () => {
     assert.equal(result, false);
     assert.equal(reloadCalled, false);
     assert.equal(storage.getItem(BACKEND_PREF_KEY), null);
+  });
+});
+
+describe('buildEnvironments — production base URL override', () => {
+  const DIRECT = 'http://10.0.0.7';
+  const CANONICAL = 'https://api.opensubtitles.com/api/v1';
+
+  test('without an override, prod is the canonical API', () => {
+    const envs = buildEnvironments({ switchEnabled: true });
+    assert.equal(envs.prod.baseUrl, CANONICAL);
+    assert.equal(envs.prod.label, 'Production');
+  });
+
+  test('GATING INVARIANT: the override is ignored when the switch is disabled', () => {
+    // A public build must be unredirectable, however its build environment is
+    // configured. This is the same rule as resolveEnvironmentId's gate.
+    const envs = buildEnvironments({ switchEnabled: false, prodBaseUrl: DIRECT });
+    assert.equal(envs.prod.baseUrl, CANONICAL);
+    assert.equal(envs.prod.label, 'Production');
+  });
+
+  test('the override applies when the switch is enabled', () => {
+    const envs = buildEnvironments({ switchEnabled: true, prodBaseUrl: DIRECT });
+    assert.equal(envs.prod.baseUrl, 'http://10.0.0.7/api/v1');
+  });
+
+  test('an active override renames the label so it cannot claim plain Production', () => {
+    const envs = buildEnvironments({ switchEnabled: true, prodBaseUrl: DIRECT });
+    assert.equal(envs.prod.label, 'Production (direct)');
+    assert.notEqual(envs.prod.label, 'Production');
+  });
+
+  test('the override is normalized like any other base URL', () => {
+    assert.equal(
+      buildEnvironments({ switchEnabled: true, prodBaseUrl: 'http://10.0.0.7/api/v1/' }).prod
+        .baseUrl,
+      'http://10.0.0.7/api/v1'
+    );
+  });
+
+  test('an empty override falls back to the canonical API', () => {
+    const envs = buildEnvironments({ switchEnabled: true, prodBaseUrl: '' });
+    assert.equal(envs.prod.baseUrl, CANONICAL);
+    assert.equal(envs.prod.label, 'Production');
+  });
+
+  test('the override never affects the dev environment', () => {
+    const envs = buildEnvironments({
+      switchEnabled: true,
+      prodBaseUrl: DIRECT,
+      devBaseUrl: 'https://osdev.ngrok.dev',
+    });
+    assert.equal(envs.dev.baseUrl, 'https://osdev.ngrok.dev/api/v1');
+    assert.equal(envs.dev.label, 'Dev (ngrok)');
   });
 });

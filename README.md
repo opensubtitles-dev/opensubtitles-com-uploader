@@ -87,16 +87,23 @@ cp .env.example .env   # then fill in your keys
 
 All configuration lives in `.env`. See `.env.example` for the annotated version.
 
-| Variable                          | Purpose                                                                                                                                                                                                                                |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VITE_OPENSUBTITLES_API_KEY_PROD` | Production API key. Required for any build that can reach production.                                                                                                                                                                  |
-| `VITE_OPENSUBTITLES_API_KEY_DEV`  | API key for the dev backend. Only needed for builds that talk to it.                                                                                                                                                                   |
-| `VITE_OPENSUBTITLES_BASE_URL`     | Base URL of the **dev** backend, e.g. `https://osdev.ngrok.dev/api/v1`. Leave unset and the dev environment is not selectable — the switch falls back to production, even if `VITE_ENV_SWITCH=true` or a stored preference says `dev`. |
-| `VITE_ENV_SWITCH`                 | `true` shows the environment switch in the header. Leave unset for public builds.                                                                                                                                                      |
+| Variable                           | Purpose                                                                                                                                                                                                                                |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_OPENSUBTITLES_API_KEY_PROD`  | Production API key. Required for any build that can reach production.                                                                                                                                                                  |
+| `VITE_OPENSUBTITLES_API_KEY_DEV`   | API key for the dev backend. Only needed for builds that talk to it.                                                                                                                                                                   |
+| `VITE_OPENSUBTITLES_BASE_URL`      | Base URL of the **dev** backend, e.g. `https://osdev.ngrok.dev/api/v1`. Leave unset and the dev environment is not selectable — the switch falls back to production, even if `VITE_ENV_SWITCH=true` or a stored preference says `dev`. |
+| `VITE_OPENSUBTITLES_BASE_URL_PROD` | Override the production base URL to reach the API server directly. **Only honoured when `VITE_ENV_SWITCH=true`** — a public build cannot be redirected. When active, the switch reads "Production (direct)".                           |
+| `VITE_DEV_PROXY_TARGET`            | Dev-server only. Proxies `/api` to this target so a backend that sends no CORS headers can be reached same-origin. Pair with a relative base URL.                                                                                      |
+| `VITE_ENV_SWITCH`                  | `true` shows the environment switch in the header. Leave unset for public builds.                                                                                                                                                      |
 
-Production is **hard-wired** to `https://api.opensubtitles.com/api/v1` and is not
-configurable — only the dev URL is. The `/api/v1` suffix is appended if you omit it,
-and trailing slashes are stripped.
+Production defaults to `https://api.opensubtitles.com/api/v1`. It can be pointed
+elsewhere with `VITE_OPENSUBTITLES_BASE_URL_PROD`, but **only in a build that also
+sets `VITE_ENV_SWITCH=true`** — a public build is hard-wired to the canonical API
+and cannot be redirected, whatever its build environment says. An active override
+renames the control to "Production (direct)", so the switch never claims plain
+"Production" while talking to something else.
+
+The `/api/v1` suffix is appended if you omit it, and trailing slashes are stripped.
 
 The legacy single-key variable `VITE_OPENSUBTITLES_API_KEY` is still accepted, but
 **only** as a fallback for the dev key — never for production. A wrong key against

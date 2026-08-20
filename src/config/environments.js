@@ -53,19 +53,58 @@ export const SWITCH_ENABLED =
   (typeof __ENV_SWITCH_ENABLED__ !== 'undefined' && __ENV_SWITCH_ENABLED__ === 'true') ||
   readEnv('VITE_ENV_SWITCH') === 'true';
 
-export const ENVIRONMENTS = Object.freeze({
-  prod: Object.freeze({
-    id: 'prod',
-    label: 'Production',
-    baseUrl: DEFAULT_BASE_URL,
-    apiKey: PROD_KEY,
-  }),
-  dev: Object.freeze({
-    id: 'dev',
-    label: 'Dev (ngrok)',
-    baseUrl: DEV_BASE_URL_RAW ? normalizeBaseUrl(DEV_BASE_URL_RAW) : '',
-    apiKey: DEV_KEY,
-  }),
+// Production base URL override. Same globalThis-property shape as the dev
+// override above, and read from VITE_OPENSUBTITLES_BASE_URL_PROD otherwise.
+// Exists so a tester build can reach the API server directly while its public
+// routes do not exist yet (e.g. Kong routes still to be defined).
+const PROD_BASE_URL_RAW =
+  (typeof globalThis !== 'undefined' && globalThis.__EMBEDDED_OPENSUBTITLES_BASE_URL_PROD__) ||
+  readEnv('VITE_OPENSUBTITLES_BASE_URL_PROD');
+
+/**
+ * Pure registry builder — exported for tests.
+ *
+ * The production override is honoured ONLY when the switch is enabled. A
+ * public build is hard-wired to the canonical API and cannot be redirected,
+ * however its build environment is configured. This is the same reasoning as
+ * the gating invariant in resolveEnvironmentId: capability that exists for
+ * testers must not exist in what ships.
+ *
+ * When the override is active the label becomes 'Production (direct)', so the
+ * switch never claims plain 'Production' while pointing somewhere other than
+ * the canonical API. The control must always name the backend it is really
+ * talking to.
+ */
+export function buildEnvironments({
+  prodBaseUrl,
+  prodKey,
+  devBaseUrl,
+  devKey,
+  switchEnabled,
+} = {}) {
+  const prodOverridden = !!switchEnabled && !!prodBaseUrl;
+  return Object.freeze({
+    prod: Object.freeze({
+      id: 'prod',
+      label: prodOverridden ? 'Production (direct)' : 'Production',
+      baseUrl: prodOverridden ? normalizeBaseUrl(prodBaseUrl) : DEFAULT_BASE_URL,
+      apiKey: prodKey,
+    }),
+    dev: Object.freeze({
+      id: 'dev',
+      label: 'Dev (ngrok)',
+      baseUrl: devBaseUrl ? normalizeBaseUrl(devBaseUrl) : '',
+      apiKey: devKey,
+    }),
+  });
+}
+
+export const ENVIRONMENTS = buildEnvironments({
+  prodBaseUrl: PROD_BASE_URL_RAW,
+  prodKey: PROD_KEY,
+  devBaseUrl: DEV_BASE_URL_RAW,
+  devKey: DEV_KEY,
+  switchEnabled: SWITCH_ENABLED,
 });
 
 const VALID_IDS = Object.freeze(['prod', 'dev']);
