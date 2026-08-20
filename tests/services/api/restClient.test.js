@@ -166,11 +166,12 @@ describe('RestClient — response parsing', () => {
   });
 
   test('200 with malformed JSON returns null without throwing', async () => {
-    const client = buildClient(() =>
-      new Response('not-json{', {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+    const client = buildClient(
+      () =>
+        new Response('not-json{', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
     );
     const r = await client.get('/x');
     assert.equal(r, null);
@@ -185,9 +186,7 @@ describe('RestClient — error handling', () => {
     authStore.registerOnExpired(() => {
       expired += 1;
     });
-    const client = buildClient(() =>
-      jsonResponse({ message: 'expired' }, { status: 401 })
-    );
+    const client = buildClient(() => jsonResponse({ message: 'expired' }, { status: 401 }));
     await assert.rejects(client.get('/me'), AuthError);
     assert.equal(expired, 1);
   });
@@ -197,18 +196,19 @@ describe('RestClient — error handling', () => {
     authStore.registerOnExpired(() => {
       expired += 1;
     });
-    const client = buildClient(() =>
-      jsonResponse({ message: 'wat' }, { status: 401 })
-    );
+    const client = buildClient(() => jsonResponse({ message: 'wat' }, { status: 401 }));
     await assert.rejects(client.get('/x', { authenticated: false }), AuthError);
     assert.equal(expired, 0);
   });
 
   test('429 throws RestError(quota_exceeded)', async () => {
     const client = buildClient(() =>
-      jsonResponse({ error_code: 'quota_exceeded', message: 'limit', details: { retry_after: 60 } }, { status: 429 })
+      jsonResponse(
+        { error_code: 'quota_exceeded', message: 'limit', details: { retry_after: 60 } },
+        { status: 429 }
+      )
     );
-    await assert.rejects(client.post('/upload', {}), (err) => {
+    await assert.rejects(client.post('/upload', {}), err => {
       assert.ok(err instanceof RestError);
       assert.equal(err.code, 'quota_exceeded');
       assert.equal(err.status, 429);
@@ -221,7 +221,7 @@ describe('RestClient — error handling', () => {
     const client = buildClient(() =>
       jsonResponse({ error_code: 'invalid_language', message: 'bad lang' }, { status: 400 })
     );
-    await assert.rejects(client.post('/x', {}), (err) => {
+    await assert.rejects(client.post('/x', {}), err => {
       assert.equal(err.code, 'invalid_language');
       assert.equal(err.status, 400);
       return true;
@@ -233,7 +233,7 @@ describe('RestClient — error handling', () => {
       () =>
         new Response('Internal Server Error', { status: 500, statusText: 'Internal Server Error' })
     );
-    await assert.rejects(client.get('/x', { retries: 0 }), (err) => {
+    await assert.rejects(client.get('/x', { retries: 0 }), err => {
       assert.equal(err.code, 'server_error');
       assert.equal(err.status, 500);
       return true;
@@ -241,8 +241,10 @@ describe('RestClient — error handling', () => {
   });
 
   test('4xx without error_code falls back to http_<status>', async () => {
-    const client = buildClient(() => new Response(null, { status: 418, statusText: "I'm a teapot" }));
-    await assert.rejects(client.get('/x'), (err) => {
+    const client = buildClient(
+      () => new Response(null, { status: 418, statusText: "I'm a teapot" })
+    );
+    await assert.rejects(client.get('/x'), err => {
       assert.equal(err.code, 'http_418');
       assert.equal(err.status, 418);
       return true;
@@ -352,7 +354,57 @@ describe('RestClient — verb shortcuts', () => {
     await client.put('/pu', { x: 3 });
     await client.delete('/d');
 
-    const methods = client._fetch.calls.map((c) => c.init.method);
+    const methods = client._fetch.calls.map(c => c.init.method);
     assert.deepEqual(methods, ['GET', 'POST', 'PATCH', 'PUT', 'DELETE']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildUrl — must not assume an absolute base
+// ---------------------------------------------------------------------------
+
+describe('buildUrl with a relative base URL', () => {
+  // A relative base is what the Vite dev proxy uses to reach a backend that
+  // sends no CORS headers. buildUrl used to call `new URL(joined)`, which
+  // throws on a relative URL, so any request carrying query params failed with
+  // "URL constructor: /api/v1/my/uploads is not a valid URL" — Upload history
+  // broke while plain uploads kept working.
+  const rel = () => new RestClient({ baseUrl: '/api/v1', apiKey: 'k' });
+
+  test('builds a relative path when there is no query', () => {
+    assert.equal(rel().buildUrl('/my/uploads'), '/api/v1/my/uploads');
+  });
+
+  test('appends a query string without throwing', () => {
+    assert.equal(
+      rel().buildUrl('/my/uploads', { page: 1, per_page: 20 }),
+      '/api/v1/my/uploads?page=1&per_page=20'
+    );
+  });
+
+  test('skips null and undefined query values', () => {
+    assert.equal(
+      rel().buildUrl('/my/uploads', { page: 2, language: null, status: undefined }),
+      '/api/v1/my/uploads?page=2'
+    );
+  });
+
+  test('an all-null query adds no question mark', () => {
+    assert.equal(rel().buildUrl('/my/uploads', { language: null }), '/api/v1/my/uploads');
+  });
+
+  test('an absolute base still produces an absolute URL', () => {
+    const abs = new RestClient({ baseUrl: 'https://api.opensubtitles.com/api/v1', apiKey: 'k' });
+    assert.equal(
+      abs.buildUrl('/my/uploads', { page: 1 }),
+      'https://api.opensubtitles.com/api/v1/my/uploads?page=1'
+    );
+  });
+
+  test('a fully-qualified path bypasses the base and still takes a query', () => {
+    assert.equal(
+      rel().buildUrl('https://other.test/x', { a: 'b c' }),
+      'https://other.test/x?a=b+c'
+    );
   });
 });

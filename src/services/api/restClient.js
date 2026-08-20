@@ -130,12 +130,17 @@ export class RestClient {
       : this.baseUrl + (path.startsWith('/') ? path : '/' + path);
     if (!query) return joined;
 
-    const url = new URL(joined);
+    // Build the query string directly rather than via `new URL()`, which
+    // throws on a relative base (e.g. "/api/v1" when the dev server proxies
+    // to a backend that sends no CORS headers).
+    const params = new URLSearchParams();
     for (const [k, v] of Object.entries(query)) {
       if (v === null || v === undefined) continue;
-      url.searchParams.set(k, String(v));
+      params.set(k, String(v));
     }
-    return url.toString();
+    const qs = params.toString();
+    if (!qs) return joined;
+    return joined + (joined.includes("?") ? "&" : "?") + qs;
   }
 
   /**

@@ -1,9 +1,16 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { execSync } from 'child_process';
 
 // https://tauri.app/v1/guides/getting-started/setup/vite
 const host = process.env.TAURI_DEV_HOST;
+
+// Load .env so config-time settings (e.g. the dev proxy target) live in the
+// same place as everything else. Vite only injects .env into import.meta.env
+// for app code — config files see process.env, which .env does not populate.
+// The empty prefix loads unprefixed vars too. Shell env still wins.
+const fileEnv = loadEnv(process.env.NODE_ENV || 'development', process.cwd(), '');
+const DEV_PROXY_TARGET = process.env.VITE_DEV_PROXY_TARGET || fileEnv.VITE_DEV_PROXY_TARGET || '';
 
 // Plugin to embed API keys at build time
 const embedApiKeysPlugin = () => {
@@ -138,6 +145,23 @@ export default defineConfig({
   },
   server: {
     sourcemapIgnoreList: () => true,
+    // Dev-only reverse proxy. Set VITE_DEV_PROXY_TARGET to reach an API server
+    // that does not send CORS headers (e.g. hitting Rails directly, bypassing
+    // Kong). Requests then look same-origin to the browser, so no preflight is
+    // needed. Pair it with VITE_OPENSUBTITLES_BASE_URL=/api/v1
+    //
+    //   VITE_DEV_PROXY_TARGET=http://10.0.0.1   (in .env, or exported)
+    //
+    // Reads from .env or the shell (shell wins). Keep internal addresses out
+    // of the repo — set it in .env, which is gitignored.
+    proxy: DEV_PROXY_TARGET
+      ? {
+          '/api': {
+            target: DEV_PROXY_TARGET,
+            changeOrigin: true,
+          },
+        }
+      : undefined,
     host: host || false, // Use Tauri host or allow external connections
     port: 1420,
     allowedHosts: ['uploader.opensubtitles.org'],
