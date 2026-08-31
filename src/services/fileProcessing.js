@@ -1,6 +1,6 @@
 import { isMediaFile, isVideoFile, isSubtitleFile } from '../utils/fileUtils.js';
 import { ZipProcessingService } from './zipProcessing.js';
-import { mkvSubtitleExtractor } from './mkvSubtitleExtractor.js';
+import { mkvSubtitleExtractor, humanizeExtractorError } from './mkvSubtitleExtractor.js';
 
 /**
  * File processing service for handling drag and drop files
@@ -258,7 +258,9 @@ export class FileProcessingService {
           }
         }
 
-        console.log(`📦 Captured ${entries.length} entries synchronously from ${items.length} items`);
+        console.log(
+          `📦 Captured ${entries.length} entries synchronously from ${items.length} items`
+        );
 
         // Now process all captured entries asynchronously
         for (const { entry, item, index } of entries) {
@@ -426,7 +428,7 @@ export class FileProcessingService {
           console.error(`❌ v1.8.1 native extraction failed for ${mkvFile.name}:`, error.message);
           onFileUpdate(mkvFile.fullPath, {
             mkvExtractionStatus: 'extraction_failed',
-            mkvExtractionError: error.message,
+            mkvExtractionError: humanizeExtractorError(error, mkvFile.file),
           });
           if (addDebugInfo) {
             addDebugInfo(`❌ Extraction failed: ${mkvFile.name} - ${error.message}`);
@@ -632,6 +634,7 @@ export class FileProcessingService {
           // Mark extraction as failed
           onFileUpdate(mkvFile.fullPath, {
             mkvExtractionStatus: 'extraction_failed',
+            mkvExtractionError: humanizeExtractorError(batchError, mkvFile.file),
             extractedCount: 0,
             streamCount: detectedStreams.length,
           });

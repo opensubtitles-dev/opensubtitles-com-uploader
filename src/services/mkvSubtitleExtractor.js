@@ -9,6 +9,40 @@ import {
 import JSZip from 'jszip';
 
 /**
+ * Turn a raw extractor error into something a user can act on.
+ *
+ * Only one failure mode is rewritten: the browser FileReader memory ceiling,
+ * which surfaces as "File could not be read! Code=-1" and tells the user
+ * nothing. The cause is a ~2 GB cap in the browser, not the extractor's
+ * chunking and not the mkvmerge version — so the only real workaround is to
+ * extract the tracks locally and drop the .srt files in.
+ *
+ * Every other error passes through verbatim. Dressing up failures we do not
+ * understand would be worse than showing them as they are.
+ *
+ * @param {Error|string|null} error
+ * @param {{size?: number}} [file] the source file, for the size in the message
+ * @returns {string}
+ */
+export function humanizeExtractorError(error, file) {
+  const message = (error && (error.message || String(error))) || 'unknown error';
+
+  const looksLikeBrowserMemoryFailure =
+    /file could not be read.*code=-1/i.test(message) ||
+    /failed to extract metadata.*file could not be read/i.test(message);
+
+  if (!looksLikeBrowserMemoryFailure) return message;
+
+  const sizeGb = file?.size ? (file.size / 1024 / 1024 / 1024).toFixed(2) : '?';
+  return (
+    `Browser cannot read files this large (${sizeGb} GB). The browser's FileReader ` +
+    `hits a ~2 GB memory cap regardless of the extractor's chunking. Workaround: ` +
+    `extract the subtitle tracks locally with mkvextract or ffmpeg, then drop the ` +
+    `.srt files onto the uploader directly.`
+  );
+}
+
+/**
  * Service for extracting subtitles from MKV files using the OpenSubtitles video metadata extractor
  * Now using the official @opensubtitles/video-metadata-extractor package v1.8.1+
  *

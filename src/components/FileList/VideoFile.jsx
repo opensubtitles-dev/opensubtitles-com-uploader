@@ -138,6 +138,18 @@ export const VideoFile = ({
                     ✅ {video.extractedCount || 0}/{video.streamCount || 0} Extracted
                   </span>
                 )}
+                {video.mkvExtractionStatus === 'extraction_failed' && (
+                  <span
+                    className="px-2 py-1 text-xs rounded font-medium"
+                    style={{
+                      backgroundColor: colors?.error + '20' || '#E5484D20',
+                      color: colors?.error || '#E5484D',
+                    }}
+                    title={video.mkvExtractionError || 'Subtitle extraction failed'}
+                  >
+                    ❌ Extraction failed
+                  </span>
+                )}
                 {(video.mkvExtractionStatus === 'no_subtitles' ||
                   video.mkvExtractionStatus === 'no_streams') && (
                   <span
