@@ -1,6 +1,10 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { getBestMovieDetectionName, isOrphanedSubtitle } from '../../src/utils/fileUtils.js';
+import {
+  getBestMovieDetectionName,
+  isOrphanedSubtitle,
+  indicatesHearingImpaired,
+} from '../../src/utils/fileUtils.js';
 
 describe('getBestMovieDetectionName', () => {
   describe('Short filenames (< 4 characters)', () => {
@@ -514,5 +518,62 @@ describe('isOrphanedSubtitle', () => {
       ),
       false
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// indicatesHearingImpaired
+// ---------------------------------------------------------------------------
+
+describe('indicatesHearingImpaired', () => {
+  // Used for both filenames and — since the MKV trackTitle port — the raw
+  // Matroska TrackEntry name, which is free-form human text like
+  // "English [SDH]" or "Cantonese (HK)". It decides the hearing_impaired flag
+  // on upload, so a false positive mislabels a subtitle in the database.
+
+  test('detects explicit SDH markers', () => {
+    assert.equal(indicatesHearingImpaired('English [SDH]'), true);
+    assert.equal(indicatesHearingImpaired('English SDH'), true);
+    assert.equal(indicatesHearingImpaired('SDH'), true);
+    assert.equal(indicatesHearingImpaired('English PSDH'), true);
+  });
+
+  test('detects a standalone HI marker', () => {
+    assert.equal(indicatesHearingImpaired('English HI'), true);
+    assert.equal(indicatesHearingImpaired('HI'), true);
+    assert.equal(indicatesHearingImpaired('Chinese (Hi)'), true);
+  });
+
+  test('does not flag ordinary language names', () => {
+    for (const t of ['English', 'Hindi', 'Thai', 'Swahili', 'Chinese', 'Cantonese (HK)']) {
+      assert.equal(indicatesHearingImpaired(t), false, `${t} should not be HI`);
+    }
+  });
+
+  test('does not flag forced or commentary tracks', () => {
+    assert.equal(indicatesHearingImpaired('forced'), false);
+    assert.equal(indicatesHearingImpaired('English Forced'), false);
+    assert.equal(indicatesHearingImpaired('Director commentary'), false);
+  });
+
+  test('honours explicit negative markers', () => {
+    for (const t of ['English non-HI', 'eng.nonhi', 'no_hi', 'not-hi']) {
+      assert.equal(indicatesHearingImpaired(t), false, `${t} should not be HI`);
+    }
+  });
+
+  test('handles empty and missing input', () => {
+    assert.equal(indicatesHearingImpaired(''), false);
+    assert.equal(indicatesHearingImpaired(null), false);
+    assert.equal(indicatesHearingImpaired(undefined), false);
+  });
+
+  test('KNOWN LIMITATION: "Hi-" prefixed words false-positive', () => {
+    // `hi[_-]` matches the "Hi-" in Hi-Res / Hi-Fi. Both are audio descriptors
+    // and vanishingly rare as subtitle track titles, and the alternative is a
+    // second HI rule diverging from the filename path — worse. Pinned here so
+    // the behaviour is known rather than discovered in the database.
+    assert.equal(indicatesHearingImpaired('Hi-Res'), true);
+    assert.equal(indicatesHearingImpaired('Hi-Fi commentary'), true);
   });
 });

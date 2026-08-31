@@ -591,6 +591,9 @@ export class FileProcessingService {
                   extractedFileData.streamIndex || subtitleFile.streamIndex || extractedCount,
                 language: langCode,
                 pairedWithMkv: true, // Mark as auto-paired with MKV
+                // Raw Matroska TrackEntry "Name" — carries markers like
+                // "English [SDH]" that never reach the synthesised filename.
+                trackTitle: extractedFileData.title || null,
               };
 
               // Add the extracted subtitle to the file list

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MessageSquare, Package, Globe, Film, Ear, Monitor, Bot, Languages } from 'lucide-react';
-import { getBestMovieDetectionName } from '../utils/fileUtils.js';
+import { getBestMovieDetectionName, indicatesHearingImpaired } from '../utils/fileUtils.js';
 import { HD_DETECTION_REGEX } from '../utils/constants.js';
 
 export const SubtitleUploadOptions = ({
@@ -137,35 +137,9 @@ export const SubtitleUploadOptions = ({
   };
 
   // Check if string indicates hearing impaired
-  const checkHearingImpairedFromString = str => {
-    if (!str) return false;
-
-    const lowerStr = str.toLowerCase();
-
-    // First check for negative patterns that explicitly indicate NOT hearing impaired
-    const negativePatterns = [
-      'nonhi',
-      'non-hi',
-      'non_hi',
-      'non.hi',
-      'nohi',
-      'no-hi',
-      'no_hi',
-      'no.hi',
-      'nothi',
-      'not-hi',
-      'not_hi',
-      'not.hi',
-    ];
-
-    if (negativePatterns.some(pattern => lowerStr.includes(pattern))) {
-      return false;
-    }
-
-    // Then check for positive HI patterns (removed CC, added PSDH)
-    const hiRegex = /\bsdh\b|\bpsdh\b|\bhi\b|hi[_-]|[_-]hi/i;
-    return hiRegex.test(str);
-  };
+  // Delegates to the shared predicate so filenames and MKV track titles
+  // are judged by one rule.
+  const checkHearingImpairedFromString = indicatesHearingImpaired;
 
   // Check if subtitle filename (without extension) ends with HI pattern
   const checkHearingImpairedFromFilename = filename => {
@@ -293,6 +267,13 @@ export const SubtitleUploadOptions = ({
       // If not found in video, check subtitle file path
       if (!shouldBeHearingImpaired && subtitleFile && subtitleFile.fullPath) {
         shouldBeHearingImpaired = checkFeatureFromPath(subtitleFile.fullPath, 'hearingimpaired');
+      }
+
+      // For MKV-extracted subtitles the only SDH marker is often the Matroska
+      // TrackEntry name ("English [SDH]"), which never reaches the synthesised
+      // filename.
+      if (!shouldBeHearingImpaired && subtitleFile?.trackTitle) {
+        shouldBeHearingImpaired = indicatesHearingImpaired(subtitleFile.trackTitle);
       }
 
       if (shouldBeHearingImpaired) {

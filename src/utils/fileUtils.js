@@ -651,3 +651,43 @@ export function isOrphanedSubtitle(file, pairedSubtitlePaths) {
   if (file.pairedWithMkv) return false;
   return !pairedSubtitlePaths.has(file.fullPath);
 }
+
+/**
+ * Does this string mark a subtitle as hearing-impaired / SDH?
+ *
+ * Applied to filenames and, since MKV track titles are propagated, to the raw
+ * Matroska TrackEntry name — free-form text like "English [SDH]". It decides
+ * the hearing_impaired flag on upload, so false positives mislabel subtitles.
+ *
+ * Explicit negatives (non-hi, nohi, not_hi, ...) win over positives.
+ *
+ * Known limitation: `hi[_-]` matches the "Hi-" in Hi-Res / Hi-Fi. Both are
+ * audio descriptors and near-nonexistent as subtitle track titles; keeping one
+ * rule shared with the filename path is worth more than special-casing them.
+ *
+ * @param {string|null|undefined} str
+ * @returns {boolean}
+ */
+export function indicatesHearingImpaired(str) {
+  if (!str) return false;
+
+  const lowerStr = str.toLowerCase();
+
+  const negativePatterns = [
+    'nonhi',
+    'non-hi',
+    'non_hi',
+    'non.hi',
+    'nohi',
+    'no-hi',
+    'no_hi',
+    'no.hi',
+    'nothi',
+    'not-hi',
+    'not_hi',
+    'not.hi',
+  ];
+  if (negativePatterns.some(pattern => lowerStr.includes(pattern))) return false;
+
+  return /\bsdh\b|\bpsdh\b|\bhi\b|hi[_-]|[_-]hi/i.test(str);
+}
