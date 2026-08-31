@@ -630,3 +630,24 @@ export const getBestMovieDetectionName = subtitleFile => {
   // Fall back to original file name if no better option found
   return baseName;
 };
+
+/**
+ * Is this file an orphaned subtitle — one with no video to pair it to?
+ *
+ * Extracted as a pure predicate because it previously lived inline inside
+ * SubtitleUploader.jsx, where nothing could test it. The pairedWithMkv check
+ * is the load-bearing part: subtitles pulled out of an MKV are paired with
+ * their source video during extraction, so treating them as orphans strips
+ * their episode association — and with it the episode-level IMDb id that
+ * buildUploadTarget uses to choose the upload target.
+ *
+ * @param {object} file file record from the processing pipeline
+ * @param {Set<string>} pairedSubtitlePaths fullPaths already claimed by a pair
+ * @returns {boolean}
+ */
+export function isOrphanedSubtitle(file, pairedSubtitlePaths) {
+  if (!file || !file.isSubtitle) return false;
+  if (file.shouldRemove) return false;
+  if (file.pairedWithMkv) return false;
+  return !pairedSubtitlePaths.has(file.fullPath);
+}

@@ -90,6 +90,7 @@ import {
   detectVideoFileInfo,
   formatFileSize,
   getBestMovieDetectionName,
+  isOrphanedSubtitle,
 } from '../utils/fileUtils.js';
 import { DropZone } from './DropZone.jsx';
 import { FileList } from './FileList/FileList.jsx';
@@ -487,10 +488,10 @@ function SubtitleUploaderInner() {
       }
     });
 
-    // Return subtitles that are not in any paired file
-    const orphaned = files.filter(
-      file => file.isSubtitle && !file.shouldRemove && !pairedSubtitlePaths.has(file.fullPath)
-    );
+    // Return subtitles with no video to pair to. Subtitles extracted from an
+    // MKV are already paired with their source video, so they are excluded —
+    // see isOrphanedSubtitle.
+    const orphaned = files.filter(file => isOrphanedSubtitle(file, pairedSubtitlePaths));
 
     return orphaned;
   })();
