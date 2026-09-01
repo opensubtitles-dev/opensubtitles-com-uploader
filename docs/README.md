@@ -4,6 +4,17 @@ This directory contains development and technical documentation for the OpenSubt
 
 ## Files
 
+### `plans/`
+The Phase 2 fork & REST migration plans — start at [`plans/00-README.md`](plans/00-README.md),
+which carries the reading order, the status board, and a **Current state**
+section listing what is shipped and what is still open. Read this first if you
+are picking the project back up.
+
+### `superpowers/`
+Specs and implementation plans written during feature work
+(`superpowers/specs/` for designs, `superpowers/plans/` for the task-by-task
+plans derived from them).
+
 ### `CLAUDE.md`
 Comprehensive development guide and project instructions for Claude Code AI assistance. Contains:
 - Project overview and architecture

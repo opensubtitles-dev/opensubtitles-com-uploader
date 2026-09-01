@@ -3,8 +3,8 @@ title: "Phase 2 — Fork & REST Migration Plans"
 aliases: [uploader-rest-migration, phase-2-master, plan-index]
 tags: [uploader, migration, plan-index, phase-2]
 created: 2026-04-15
-updated: 2026-04-16 — Phase 2 implementation landed (commits 1-10 on branch phase-2/rest-migration)
-status: implementation-complete
+updated: 2026-09-01 — v2.0.0 released; env switch shipped; upstream fixes ported ([[12-upstream-drift-port]])
+status: released — v2.0.0 shipped, v2.0.1 pending
 ---
 
 # Phase 2 — Fork & REST Migration · Plan Index
@@ -24,6 +24,8 @@ status: implementation-complete
 8. [[08-testing-strategy]] — unit tests, plus a manual smoke test against production
 9. [[09-migration-sequence]] — the actual step-by-step execution order
 10. [[10-risks-rollback]] — dual-endpoint preference, what can break, how to roll back
+11. [[11-stub-feature-from-imdb-tmdb]] — creating a stub feature when the title is unknown
+12. [[12-upstream-drift-port]] — fixes ported from upstream v1.8.10–v1.8.21 since the fork
 
 ## Status board
 
@@ -36,9 +38,11 @@ status: implementation-complete
 | 05 | [[05-upload-flow]] | ✅ written | ✅ shipped in steps 5-7 |
 | 06 | [[06-my-uploads-integration]] | ✅ written | ✅ shipped in step-8 |
 | 07 | [[07-error-mapping]] | ✅ written | ✅ shipped in step-10 (`ErrorBanner` + `errorCopy`) |
-| 08 | [[08-testing-strategy]] | ✅ written | 🟡 unit tests landed (416 tests); prod smoke test blocked on Kong routes; golden replay deferred |
+| 08 | [[08-testing-strategy]] | ✅ written | 🟡 unit tests landed (460 tests / 106 suites); prod smoke test blocked on Kong routes; golden replay deferred |
 | 09 | [[09-migration-sequence]] | ✅ written | ✅ all 11 numbered steps committed |
 | 10 | [[10-risks-rollback]] | ✅ written | n/a (advisory doc; dual-endpoint toggle not shipped) |
+| 11 | [[11-stub-feature-from-imdb-tmdb]] | ✅ written | ✅ shipped (ui-steps 32-34) |
+| 12 | [[12-upstream-drift-port]] | ✅ written | 🟡 4 of 6 findings ported; MKV fast path outstanding |
 
 ## Cross-repo references
 
@@ -62,15 +66,58 @@ status: implementation-complete
 > 5. ✅ Delete it — `DELETE /api/v1/my/uploads/:id` (step-8)
 >
 > Zero XML-RPC calls in source — `xmlrpc.js` deleted entirely (859 LOC removed in step-7).
-> Test suite: **327/327 passing** across 84 suites.
+> Test suite at the time: **327/327 passing** across 84 suites.
 >
-> **Pending**: manual production smoke test via the environment switch (blocked on
-> Kong routes), then version bump + GH Actions release per CLAUDE.md sequence.
 > Staging was dropped as a test target — it shares the prod DB, runs no sidekiq
 > and has no dedicated opensearch indexes, so uploads there are never properly
 > saved. See [[08-testing-strategy]] §6.
 >
 > Dual-endpoint toggle ([[10-risks-rollback]]) **NOT shipped** — optional follow-up if the deprecation period needs a legacy fallback.
+
+---
+
+## Current state (2026-09-01)
+
+> [!SUCCESS] v2.0.0 released
+> Tagged `v2.0.0` and merged to `main`. GitHub Actions built all platforms; the
+> macOS `.dmg` was tested by hand and works. Test suite: **460 passing / 106
+> suites**. Updater signing key generated and stored in 1Password; the public
+> key is committed and the private key + password are GitHub secrets.
+
+**Shipped since the Phase 2 plan was written:**
+
+- **Environment switch** — runtime dev/prod toggle in the header, with per-env
+  storage namespacing (infix, e.g. `osdb_com_dev_jwt`) and dual build-time API
+  keys. Hidden by default: `VITE_ENV_SWITCH=false` unless explicitly enabled.
+  Spec: `docs/superpowers/specs/2026-08-14-env-switch-design.md`.
+- **Prod base-URL override** — `VITE_*` overrides honoured in dev/test builds
+  only, so prod can be reached directly while the Kong routes are missing.
+- **Upstream fixes** — four ports from upstream v1.8.10–v1.8.21, including a
+  critical base64 bug that made large subtitles unuploadable. See
+  [[12-upstream-drift-port]].
+
+### Open items
+
+| Item | State |
+|---|---|
+| **v2.0.1 release** | ⬜ **Warranted.** The v2.0.0 binaries still carry the base64 bug, the orphan misclassification and the silent extraction failures — all fixed on `main` but unreleased. |
+| Push `39b3b5b` | ⬜ Committed locally, not yet pushed. |
+| Kong routes for prod | ⬜ Blocked externally. Until they exist, prod is reachable only via the direct base-URL override. |
+| Production smoke test | ⬜ Blocked on the above. Procedure in [[08-testing-strategy]] §6. |
+| Env switch — browser check | ⬜ Unit-tested and built, but never opened in a browser. |
+| MKV fast path | ⬜ Deliberately not ported; needs real MKV files. Rationale in [[12-upstream-drift-port]] §5. |
+| `trackTitle` SDH wiring | ⬜ Predicate is tested; the component wiring is not (no React harness). |
+
+### Known defects (tracked, not yet fixed)
+
+- `CACHE_KEYS.XMLRPC_CHECKSUB` is referenced at `src/services/cache.js:416` and
+  `:608` but is no longer defined in `constants.js` — leftover from the XML-RPC
+  removal. Both sites resolve to `undefined` at runtime.
+- The root `CLAUDE.md` still documents `gh workflow run "Build Desktop Apps"
+  --field create_release=true`; the workflow does not accept that input.
+- `npm run lint` reports 361 problems (39 errors, 322 warnings). The count has
+  been steady throughout this work — nothing here introduced them — but it has
+  never been triaged.
 
 ## Decision register
 
@@ -95,3 +142,5 @@ Decisions made during audit + planning that aren't reversible without heavy rewo
 - #uploader/testing — [[08-testing-strategy]]
 - #uploader/sequence — [[09-migration-sequence]]
 - #uploader/risk — [[10-risks-rollback]]
+- #uploader/stub-feature — [[11-stub-feature-from-imdb-tmdb]]
+- #uploader/upstream — [[12-upstream-drift-port]]
