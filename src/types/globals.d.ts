@@ -8,6 +8,11 @@ declare const __EMBEDDED_OPENSUBTITLES_API_KEY__: string | undefined;
 declare const __EMBEDDED_TMDB_API_KEY__: string | undefined;
 declare const __VITE__: any;
 
+// NOTE: this block has drifted from vite.config.js. The flags actually defined
+// there are __EMBEDDED_OPENSUBTITLES_API_KEY_PROD__, ..._DEV__ and
+// __ENV_SWITCH_ENABLED__ — none of them declared here — while
+// __EMBEDDED_OPENSUBTITLES_API_KEY__ above is declared but defined nowhere.
+
 // Tauri globals
 interface Window {
   __TAURI__?: any;
