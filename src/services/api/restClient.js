@@ -19,13 +19,10 @@
  * See docs/plans/04-rest-client-refactor.md and 07-error-mapping.md.
  */
 
-import {
-  API_ENDPOINTS,
-  OPENSUBTITLES_COM_API_KEY,
-  getApiHeaders,
-} from '../../utils/constants.js';
+import { API_ENDPOINTS, OPENSUBTITLES_COM_API_KEY, getApiHeaders } from '../../utils/constants.js';
 import { delayedFetch } from '../../utils/networkUtils.js';
 import authStore from './authStore.js';
+import { logApiCall } from '../../utils/apiDebugLog.js';
 
 // ---------------------------------------------------------------------------
 // Error types
@@ -76,10 +73,7 @@ function synthesizeNetworkError(err) {
 // Client
 // ---------------------------------------------------------------------------
 
-const NON_RETRIABLE_CLIENT_CODES = new Set([
-  'unauthorized',
-  'offline',
-]);
+const NON_RETRIABLE_CLIENT_CODES = new Set(['unauthorized', 'offline']);
 
 const DEFAULT_RETRIES = 1; // one retry on top of the first attempt (= 2 tries)
 
@@ -140,7 +134,7 @@ export class RestClient {
     }
     const qs = params.toString();
     if (!qs) return joined;
-    return joined + (joined.includes("?") ? "&" : "?") + qs;
+    return joined + (joined.includes('?') ? '&' : '?') + qs;
   }
 
   /**
@@ -197,7 +191,7 @@ export class RestClient {
 
         // Exponential backoff — 300ms, 600ms, 1200ms...
         const backoff = 300 * Math.pow(2, attempt - 1);
-        await new Promise((r) => setTimeout(r, backoff));
+        await new Promise(r => setTimeout(r, backoff));
       }
     }
     // unreachable — loop either returns or throws
@@ -205,11 +199,27 @@ export class RestClient {
   }
 
   async _attempt(url, init, authenticated) {
+    // Debug logging wraps THIS method rather than request(), so each retry is
+    // recorded separately — "it failed three times" and "it failed once" are
+    // different diagnoses. logApiCall is a no-op unless debug mode is on, and
+    // it masks every credential. See utils/apiDebugLog.js.
+    const startedAt = Date.now();
+    const logAttempt = (status, error) =>
+      logApiCall({
+        method: init.method,
+        url,
+        status,
+        ms: Date.now() - startedAt,
+        headers: init.headers,
+        error,
+      });
+
     let response;
     try {
       response = await this._fetch(url, init);
     } catch (err) {
       // fetch rejected before we got a response — network-layer failure
+      logAttempt(null, `network: ${err?.message ?? err}`);
       throw synthesizeNetworkError(err);
     }
 
@@ -219,11 +229,13 @@ export class RestClient {
         authStore.onAuthExpired();
       }
       const data = await this._safeJson(response);
+      logAttempt(401, data?.message ?? 'Authentication required');
       throw new AuthError(data?.message ?? 'Authentication required', data?.details ?? {});
     }
 
     if (response.status === 429) {
       const data = await this._safeJson(response);
+      logAttempt(429, data?.message ?? 'Rate limited');
       throw new RestError(
         data?.error_code ?? 'quota_exceeded',
         data?.message ?? 'Rate limited',
@@ -235,8 +247,11 @@ export class RestClient {
     if (!response.ok) {
       const data = await this._safeJson(response);
       const code =
-        data?.error_code ??
-        (response.status >= 500 ? 'server_error' : `http_${response.status}`);
+        data?.error_code ?? (response.status >= 500 ? 'server_error' : `http_${response.status}`);
+      // The whole body message, not the toast's truncation. A gateway rejection
+      // and an application rejection read nothing alike, and telling them apart
+      // is usually the entire diagnosis.
+      logAttempt(response.status, `${code}: ${data?.message ?? response.statusText}`);
       throw new RestError(
         code,
         data?.message ?? response.statusText,
@@ -245,6 +260,7 @@ export class RestClient {
       );
     }
 
+    logAttempt(response.status, null);
     return this._safeJson(response);
   }
 
