@@ -1,15 +1,37 @@
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { toBlobURL, fetchFile } from '@ffmpeg/util';
 import { ensureNetworkDelay } from '../utils/networkUtils.js';
 import { DEFAULT_SETTINGS } from '../utils/constants.js';
 
+// FFmpeg is imported dynamically rather than at the top of this file, so it is
+// not pulled in merely by importing this module. Note that Rollup cannot give it
+// its own chunk: @opensubtitles/video-metadata-extractor imports @ffmpeg/*
+// STATICALLY, and a module that is statically imported anywhere stays in the
+// main graph. The dynamic form still keeps it off this module's load path, which
+// is what matters here.
+let ffmpegModulePromise = null;
+
+async function loadFFmpegModules() {
+  if (!ffmpegModulePromise) {
+    ffmpegModulePromise = Promise.all([import('@ffmpeg/ffmpeg'), import('@ffmpeg/util')]).then(
+      ([ffmpegMod, utilMod]) => ({
+        FFmpeg: ffmpegMod.FFmpeg,
+        toBlobURL: utilMod.toBlobURL,
+        fetchFile: utilMod.fetchFile,
+      })
+    );
+  }
+  return ffmpegModulePromise;
+}
+
 /**
  * Video Metadata Service
- * Extracts metadata from video files using FFmpeg WebAssembly
+ * Extracts metadata from video files using FFmpeg WebAssembly.
+ * Desktop builds only — see the note above.
  */
 class VideoMetadataService {
   constructor() {
-    this.ffmpeg = new FFmpeg();
+    // Instantiated in _loadFFmpegCore, once the module is actually imported.
+    this.ffmpeg = null;
+    this.fetchFile = null;
     this.isLoaded = false;
     this.loadPromise = null;
   }
@@ -30,7 +52,19 @@ class VideoMetadataService {
 
   async _loadFFmpegCore() {
     try {
-      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+      const { FFmpeg, toBlobURL, fetchFile } = await loadFFmpegModules();
+      this.ffmpeg = new FFmpeg();
+      this.fetchFile = fetchFile;
+
+      // public/ffmpeg/, not unpkg.com. This used to fetch the core from a
+      // third-party CDN on every load — unacceptable for a page served from our
+      // own domain, and needless when the files already ship in public/.
+      //
+      // BASE_URL rather than window.location, so it stays correct if the app is
+      // ever mounted under a sub-path. The extractor package's own hook builds
+      // the same path from window.location.origin + pathname, which is why
+      // public/ffmpeg/ must keep existing — see the note in vite.config.js.
+      const baseURL = `${import.meta.env.BASE_URL}ffmpeg`;
 
       await this.ffmpeg.load({
         coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
@@ -41,6 +75,7 @@ class VideoMetadataService {
       console.log('✅ FFmpeg loaded successfully');
     } catch (error) {
       console.error('❌ Failed to load FFmpeg:', error);
+      this.loadPromise = null;
       throw new Error(`Failed to load FFmpeg: ${error.message}`);
     }
   }
@@ -78,7 +113,9 @@ class VideoMetadataService {
 
       try {
         // Write file to FFmpeg virtual filesystem
-        await this.ffmpeg.writeFile(uniqueFilename, await fetchFile(fileData));
+        // this.fetchFile is set by _loadFFmpegCore alongside the dynamic import,
+        // since fetchFile is no longer a module-level binding.
+        await this.ffmpeg.writeFile(uniqueFilename, await this.fetchFile(fileData));
 
         // Capture FFmpeg log output
         let ffmpegLogs = [];

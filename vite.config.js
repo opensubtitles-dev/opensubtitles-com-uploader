@@ -29,6 +29,19 @@ const embedApiKeysPlugin = () => {
   };
 };
 
+// NOTE on public/ffmpeg/ — do not "optimise" it out of the web build.
+//
+// It holds the FFmpeg core (ffmpeg-core.js + ffmpeg-core.wasm, ~32 MB) and it
+// looks unreferenced: nothing in src/, index.html or this config mentions it.
+// It is not. @opensubtitles/video-metadata-extractor's
+// useOptimizedVideoMetadata hook builds the URL at RUNTIME from
+// `window.location.origin + window.location.pathname + 'ffmpeg'`, so the
+// dependency is invisible to any grep of this repo. Moving these files out of
+// publicDir makes MKV subtitle extraction 404 with no build-time warning.
+//
+// Both builds therefore ship it. That is a deliberate trade: the web page
+// carries 32 MB so that nothing is fetched from unpkg.com at runtime.
+
 export default defineConfig({
   plugins: [react(), embedApiKeysPlugin()],
   publicDir: 'public',

@@ -82,6 +82,24 @@ export class MkvSubtitleExtractor {
       console.log('🎬 Initializing VideoMetadataExtractor v1.8.1...');
 
       this.extractor = new VideoMetadataExtractor({
+        // Serve the FFmpeg core from public/ffmpeg/ rather than unpkg.com: a
+        // page on our own domain should not depend on a third-party CDN at
+        // runtime, and the files already ship in public/. The package's
+        // useOptimizedVideoMetadata hook self-hosts the same way, building this
+        // path from window.location — this brings the class path into line.
+        //
+        // A/B-tested 2026-10-02 and cleared: extraction failed identically
+        // against unpkg's core, so the local one was never at fault. FFmpeg
+        // loaded from it and read FPS correctly. The actual cause was the
+        // extractor being pinned at 1.8.1, which has no pure-JS Matroska fast
+        // path, so a 113 MB MKV blew the 180 s ffmpeg timeout — see
+        // _tryExtractMkvFast below.
+        //
+        // Scope note: this option only affects THIS class's extractor instance.
+        // The module-level extractAllSubtitles() constructs its own with no
+        // options, so it still fetches the core from unpkg no matter what is
+        // set here.
+        ffmpegCoreURL: `${import.meta.env.BASE_URL}ffmpeg/ffmpeg-core.js`,
         debug: false, // Disable verbose FFmpeg logging
         timeout: 60000, // Increased to 60 second timeout for FFmpeg loading
         logLevel: 'error', // Suppress chunk processing logs
