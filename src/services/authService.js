@@ -153,9 +153,20 @@ class AuthService {
     try {
       const restUser = await authApi.getUserInfo();
       if (!restUser) {
-        // /infos/user returned empty body — treat as expired
-        await this.clearAuthData();
-        return null;
+        // An empty or unparseable body is NOT a verdict, so it must not
+        // discard credentials. restClient._safeJson() returns null both for a
+        // genuinely empty body and for one that is not JSON at all — which is
+        // exactly what a Cloudflare or Anubis interstitial looks like (HTTP
+        // 200, HTML body). Treating that as "expired" wiped the stored session
+        // on a single bad startup and logged the user out permanently.
+        //
+        // Only an actual 401 in the catch below may clear stored credentials.
+        // Everything else rolls the token back and rethrows as transient.
+        const noVerdict = new Error(
+          'No verdict from /infos/user (empty or non-JSON body — gateway interstitial?)'
+        );
+        noVerdict.code = 'no_verdict';
+        throw noVerdict;
       }
 
       this.userData = mergeRefreshedUser(this.userData, restUser);

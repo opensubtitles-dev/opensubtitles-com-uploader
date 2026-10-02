@@ -36,7 +36,7 @@ export class SessionManager {
         if (isValidSessionFormat(jwt)) {
           this.storeSessionId(jwt);
           captured = jwt;
-          console.log(`🔐 SessionManager: ✅ Captured JWT from URL (${jwt.substring(0, 8)}...)`);
+          console.log('🔐 SessionManager: ✅ Captured JWT from URL');
         } else {
           console.warn('🔐 SessionManager: URL ?jwt= is not a valid JWT shape; ignoring');
         }
