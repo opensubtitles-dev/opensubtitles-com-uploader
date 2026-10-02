@@ -12,7 +12,7 @@ export default [
       'react-hooks': reactHooks,
     },
     languageOptions: {
-      ecmaVersion: 2021,
+      ecmaVersion: 2022,
       sourceType: 'module',
       parserOptions: {
         ecmaFeatures: {

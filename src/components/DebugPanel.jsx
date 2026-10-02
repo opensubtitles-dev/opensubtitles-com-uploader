@@ -54,8 +54,12 @@ export const DebugPanel = ({
 
   // Copy debug content to clipboard
   const copyToClipboard = async () => {
+    // Declared outside the try: the clipboard fallback in the catch reads it.
+    // Left inside, it is block-scoped to the try and the fallback throws
+    // ReferenceError instead of copying.
+    let content = '=== DEBUG INFORMATION ===\n\n';
+
     try {
-      let content = '=== DEBUG INFORMATION ===\n\n';
 
       // Add verbose log status
       content += `Verbose log: ${debugMode ? 'ON' : 'OFF'}\n`;
