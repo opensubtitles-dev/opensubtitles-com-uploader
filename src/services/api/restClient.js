@@ -229,8 +229,12 @@ export class RestClient {
         authStore.onAuthExpired();
       }
       const data = await this._safeJson(response);
-      logAttempt(401, data?.message ?? 'Authentication required');
-      throw new AuthError(data?.message ?? 'Authentication required', data?.details ?? {});
+      // Rails' own auth filters answer { errors: ["Invalid domain"] } rather
+      // than { message }. Without this the reason is replaced by the generic
+      // fallback, and "wrong host", "no token" and "bad token" all look alike.
+      const reason = data?.message ?? data?.errors?.[0] ?? 'Authentication required';
+      logAttempt(401, reason);
+      throw new AuthError(reason, data?.details ?? {});
     }
 
     if (response.status === 429) {

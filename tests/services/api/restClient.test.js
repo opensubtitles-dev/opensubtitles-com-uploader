@@ -201,6 +201,17 @@ describe('RestClient — error handling', () => {
     assert.equal(expired, 0);
   });
 
+  test('401 surfaces the reason from a Rails { errors: [...] } body', async () => {
+    const client = buildClient(() =>
+      jsonResponse({ errors: ['Invalid domain'], status: 401 }, { status: 401 })
+    );
+    await assert.rejects(client.get('/x', { authenticated: false }), err => {
+      assert.ok(err instanceof AuthError);
+      assert.equal(err.message, 'Invalid domain');
+      return true;
+    });
+  });
+
   test('429 throws RestError(quota_exceeded)', async () => {
     const client = buildClient(() =>
       jsonResponse(
