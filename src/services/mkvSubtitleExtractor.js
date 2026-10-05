@@ -9,6 +9,7 @@ import {
   cleanup,
 } from '@opensubtitles/video-metadata-extractor';
 import JSZip from 'jszip';
+import { createReadAheadFile } from '../utils/readAheadFile.js';
 
 /**
  * Turn a raw extractor error into something a user can act on.
@@ -54,8 +55,21 @@ export function humanizeExtractorError(error, file) {
  * - Better memory management and resource cleanup
  * - Enhanced support for large files up to 88GB
  */
+// The fast path captures its output by replacing URL.createObjectURL and
+// document.createElement, which are process-wide. Two runs at once would
+// capture each other's ZIP and restore each other's wrappers in the wrong
+// order, so they take turns. Module-level, not per instance: the globals are
+// shared by every instance.
+let fastPathQueue = Promise.resolve();
+
 export class MkvSubtitleExtractor {
-  constructor() {
+  /**
+   * @param {object} [deps] the package functions, injectable for tests
+   */
+  constructor(deps = {}) {
+    this._extractFast = deps.extractFast ?? extractMkvSubtitlesFast;
+    this._isMatroska = deps.isMatroska ?? isMatroska;
+    this._extractAllFromPackage = deps.extractAllFromPackage ?? extractAllSubtitlesFromPackage;
     this.extractor = null;
     this.isLoaded = false;
     this.loadingPromise = null;
@@ -476,29 +490,44 @@ export class MkvSubtitleExtractor {
    * unzip it to recover per-track bytes in the existing extractedFiles
    * shape. Wrappers restored in finally so concurrent code is unaffected.
    *
-   * Returns null when:
-   *  - the file is not Matroska/WebM (caller falls back to ffmpeg path), or
-   *  - no subtitles found, or
-   *  - any error occurs during fast extraction (caller falls back).
-   * Throws nothing on its own — failure is signalled by null return so the
-   * existing ffmpeg ladder picks up cleanly.
+   * Returns null when the fast path has no answer, and the caller should fall
+   * back to ffmpeg:
+   *  - the file is not Matroska/WebM, or
+   *  - any error occurs during fast extraction, or
+   *  - it found subtitle streams but could not deliver them.
+   *
+   * Returns `{ extractedFiles: [], conclusive: true }` when it read the file
+   * cleanly and there is simply nothing to extract (no subtitle streams, or
+   * bitmap ones only). That IS an answer: ffmpeg would find the same nothing,
+   * after a 180 s timeout and a full read of the file into memory.
+   *
+   * Throws nothing on its own.
    */
   async _tryExtractMkvFast(file) {
     if (typeof window === 'undefined' || typeof document === 'undefined') return null;
     let matroska = false;
     try {
-      matroska = await isMatroska(file);
+      matroska = await this._isMatroska(file);
     } catch (err) {
       console.warn(`⚠️ isMatroska check failed for ${file.name}:`, err?.message || err);
       return null;
     }
     if (!matroska) return null;
 
+    // One at a time — see fastPathQueue. _runMkvFast never rejects.
+    const run = fastPathQueue.then(() => this._runMkvFast(file));
+    fastPathQueue = run;
+    return run;
+  }
+
+  async _runMkvFast(file) {
     console.log(`🚀 MKV fast path (pure-JS EBML, v1.9.0) for: ${file.name}`);
 
     // Intercept the ZIP blob and suppress the auto-download.
     const origCreateObjectURL = URL.createObjectURL;
-    const origCreateElement = document.createElement.bind(document);
+    // Keep the original itself for the restore; a bound copy would leave one
+    // more wrapper behind on every run.
+    const origCreateElement = document.createElement;
     let capturedBlob = null;
     URL.createObjectURL = blob => {
       // The fast path only minted one blob (the ZIP) right before clicking
@@ -508,7 +537,7 @@ export class MkvSubtitleExtractor {
       return origCreateObjectURL(blob);
     };
     document.createElement = tag => {
-      const el = origCreateElement(tag);
+      const el = origCreateElement.call(document, tag);
       if (String(tag).toLowerCase() === 'a') {
         // Suppress the synthetic anchor's auto-click without breaking other
         // calls that genuinely need an anchor element.
@@ -519,11 +548,26 @@ export class MkvSubtitleExtractor {
 
     try {
       const t0 = performance.now();
-      const report = await extractMkvSubtitlesFast(file, (text, percent) => {
-        if (typeof percent === 'number' && percent % 25 === 0) {
-          console.log(`[mkvfast] ${text} (${percent}%)`);
-        }
+      // Upstream reports every 250 ms and the percentage sits on the same value
+      // for minutes of a long film, so log each quarter once, not every tick.
+      let lastQuarter = null;
+      // Buffered: the walk issues two tiny reads per cluster, which crawls on
+      // a network share. See utils/readAheadFile.js.
+      const buffered = createReadAheadFile(file);
+      const report = await this._extractFast(buffered, (text, percent) => {
+        if (typeof percent !== 'number') return;
+        // The setup stages (below 10%) each report once; always show them, so
+        // a stall can be placed before or after the cluster walk.
+        const quarter = percent < 10 ? -percent : Math.floor(percent / 25);
+        if (quarter === lastQuarter) return;
+        lastQuarter = quarter;
+        console.log(`[mkvfast] ${text} (${percent}%)`);
       });
+      console.log(
+        `[mkvfast] ${buffered.stats.reads} reads, ` +
+          `${(buffered.stats.bytes / 1024 / 1024).toFixed(0)} MB, ` +
+          `slowest ${buffered.stats.slowestMs} ms`
+      );
       const duration = (performance.now() - t0).toFixed(0);
       console.log(
         `✅ MKV fast path done in ${duration}ms: ${report.extractedCount}/${report.totalSubtitleStreams} subtitle streams`
@@ -532,8 +576,14 @@ export class MkvSubtitleExtractor {
         console.warn(`[mkvfast] errors:`, report.errors);
       }
 
-      if (!capturedBlob || report.extractedCount === 0) {
-        return { extractedFiles: [], zipBlob: capturedBlob || null };
+      if (report.extractedCount === 0) {
+        // Nothing extracted. Conclusive only if nothing failed either.
+        const clean = !report.failedCount && !report.errors?.length;
+        return clean ? { extractedFiles: [], zipBlob: null, conclusive: true } : null;
+      }
+      if (!capturedBlob) {
+        console.warn(`[mkvfast] extracted ${report.extractedCount} streams but captured no ZIP`);
+        return null;
       }
 
       // Unzip the captured ZIP to recover per-track bytes.
@@ -560,6 +610,7 @@ export class MkvSubtitleExtractor {
           title: meta.title || null,
         });
       }
+      if (extractedFiles.length === 0) return null;
       return { extractedFiles, zipBlob: capturedBlob };
     } catch (err) {
       console.warn(`⚠️ MKV fast path failed for ${file.name}: ${err?.message || err}`);
@@ -584,7 +635,7 @@ export class MkvSubtitleExtractor {
     // demux quirk, no 2 GB Blob ceiling, and no 32 MB core download. Returns
     // null on miss / failure so the existing ffmpeg ladder still runs.
     const fast = await this._tryExtractMkvFast(file);
-    if (fast && fast.extractedFiles.length > 0) {
+    if (fast && (fast.extractedFiles.length > 0 || fast.conclusive)) {
       return fast;
     }
 
@@ -595,12 +646,18 @@ export class MkvSubtitleExtractor {
       );
 
       const startTime = performance.now();
+      // Cancel the timer once the race is settled, or it stays armed for the
+      // full 180 s after every extraction that finished early.
+      let timeoutId;
       const nativeResult = await Promise.race([
-        extractAllSubtitlesFromPackage(file),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Native extraction timeout after 180 seconds')), 180000)
-        ),
-      ]);
+        this._extractAllFromPackage(file),
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(
+            () => reject(new Error('Native extraction timeout after 180 seconds')),
+            180000
+          );
+        }),
+      ]).finally(() => clearTimeout(timeoutId));
 
       const duration = performance.now() - startTime;
       console.log(`⏱️ Native extraction completed in ${duration.toFixed(2)}ms`);
