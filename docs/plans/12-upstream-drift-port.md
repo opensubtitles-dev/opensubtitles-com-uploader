@@ -3,8 +3,8 @@ title: "Upstream Drift — porting fixes from OpenSubtitles-Uploader-PRO"
 aliases: [upstream-drift, mkv-port, fork-drift]
 tags: [uploader, upstream, mkv, port, phase-2]
 created: 2026-08-31
-updated: 2026-09-01 — four of six findings ported; MKV fast path outstanding
-status: mostly-ported
+updated: 2026-10-05 — second pass over v1.8.22–v1.9.0; link remover ported; MKV fast path landed and hardened
+status: second pass done — updater pipeline and three smaller ports outstanding
 ---
 
 # Upstream Drift — porting fixes from the original project
@@ -42,7 +42,7 @@ finding was confirmed by direct code inspection before it was ported.
 | 2 | MKV-extracted subtitles misclassified as orphaned | HIGH | ✅ ported — `6d9957e` |
 | 3 | `extraction_failed` set but never surfaced | MEDIUM-HIGH | ✅ ported — `6f4512e` |
 | 4 | No `humanizeExtractorError` | MEDIUM | ✅ ported — `6f4512e` |
-| 5 | No MKV fast path (`_tryExtractMkvFast`) | MEDIUM | ⬜ **not ported** — see below |
+| 5 | No MKV fast path (`_tryExtractMkvFast`) | MEDIUM | ✅ ported — `cfa592a`, hardened in `b6f2428` (see second pass) |
 | 6 | No `trackTitle` propagation for SDH detection | MEDIUM | ✅ ported — `39b3b5b` |
 
 ### 1 — base64 stack overflow (`1ab82be`)
@@ -125,7 +125,13 @@ instead of two that drift apart.
 > Verified-good cases: correctly flags `English [SDH]`, `HI`, `Chinese (Hi)`;
 > correctly ignores `Hindi`, `Thai`, `Swahili`, `Cantonese (HK)`, `English (CC)`.
 
-## 5 — MKV fast path: not ported, deliberately
+## 5 — MKV fast path: not ported, deliberately *(superseded 2026-10-02)*
+
+> [!NOTE] Superseded
+> The fast path was ported in `cfa592a` (extractor 1.9.0) and hardened on
+> 2026-10-05 in `b6f2428`. The reasoning below is kept as the record of why it
+> waited; the corpus it asks for is still only partly covered — see
+> § Second pass → MKV fast path.
 
 Upstream v1.8.14 added `_tryExtractMkvFast` plus a `BROWSER_FILEREADER_SOFT_LIMIT`
 — a pure-JS EBML reader that bypasses ffmpeg-WASM for Matroska containers. It is
@@ -163,3 +169,154 @@ our version is REST-shaped and covered by 24 tests.
 All four ports landed **after** the `v2.0.0` tag. The v2.0.0 binaries still
 carry the base64 bug, the orphan misclassification, and the silent extraction
 failures. A **v2.0.1** is warranted — see [[00-README]] § Current state.
+
+---
+
+# Second pass — upstream v1.8.22 → v1.9.0 (2026-10-05)
+
+Upstream shipped six releases after the first study. This pass was a single
+reviewer reading the diffs and commit messages directly (`git log
+v1.8.21..upstream/main`), then checking each candidate against this fork's
+source and, where it mattered, against what this fork has actually published.
+
+| Upstream | Change | Verdict here |
+|---|---|---|
+| **1.9.0** | Remove links from subtitles (opt-in, preview first) | ✅ **ported** — see below |
+| 1.8.26 | API error banner no longer covers the header (`38f1392`) | ⬜ applies — ours is still `fixed top-0` at `ApiHealthCheck.jsx:396` |
+| 1.8.26 / 1.8.25 | AppImage only started for the user who built it; AppStream metadata | ❓ unverified — upstream confirmed it against Tauri CLI 2.11.5; we ship an AppImage on 2.6 and have not checked ours. Metadata only matters for the AppImage catalog |
+| 1.8.24 | macOS auto-update fix; refuse to publish a broken manifest (`31ecc9a`) | 🔴 **applies, and it is worse here** — see below |
+| 1.8.23 | Tauri 2.7 → 2.11.6 and every plugin | ⬜ applies — we are on 2.6. Own change, built on all three platforms |
+| 1.8.22 | Hourly session keep-alive | ❌ not applicable — built on the `.org` PHPSESSID. Our JWT lives 24 h with no refresh (D2) |
+| 1.8.22 | Auth robustness, ESLint 2022, masked token logging | ✅ already here — `1e0f3fa`, `4687c6d`, `982865d` |
+| — | Signed updater artifacts (`73953db`) | 🔴 not ported — same item as the 1.8.24 row |
+| — | Privacy policy, footer link, MIT licence | ⬜ maintainer's call |
+
+## The updater pipeline is broken in this fork
+
+Found while checking whether upstream's macOS fix applied. The `latest.json`
+this fork published for v2.0.0 has an **empty signature for all five platforms**,
+and the three macOS entries point at the `.dmg`:
+
+```
+windows-x86_64   | sig_len 0 | …_2.0.0_x64-setup.exe
+darwin-universal | sig_len 0 | …_2.0.0_universal.dmg
+darwin-x86_64    | sig_len 0 | …_2.0.0_universal.dmg
+darwin-aarch64   | sig_len 0 | …_2.0.0_universal.dmg
+linux-x86_64     | sig_len 0 | …_2.0.0_amd64.AppImage
+```
+
+`tauri.conf.json` sets an updater `pubkey`, so the native updater must verify a
+signature and cannot; and it cannot install a `.dmg` in any case. Upstream had
+the identical defect on macOS only and fixed it in `73953db` + `31ecc9a`. Our
+workflow still has the pre-fix shape:
+
+- `build-desktop-apps.yml` hardcodes `"signature": ""` in the manifest step;
+- it passes `TAURI_PRIVATE_KEY` (the Tauri v1 name; v2 reads
+  `TAURI_SIGNING_PRIVATE_KEY`);
+- macOS builds with `--bundles dmg`, which never emits `.app.tar.gz` + `.sig`;
+- `createUpdaterArtifacts` is not set.
+
+**Not tested end to end.** `updateService.js` has its own download fallback, so
+what a v2.0.0 user actually experiences is unknown. Treat as "very likely
+broken"; fix before the next release, and port upstream's guard that fails the
+build when a signature is empty.
+
+## Link remover — ported
+
+Seven files copied **verbatim** from upstream v1.9.0, so a future diff against
+upstream stays clean: `subtitleSanitizer.js`, `data/tlds.js`,
+`utils/subtitleBytes.js`, `hooks/useLinkSanitizer.js`,
+`LinkSanitizePreview.jsx`, the 99-test file, and `scripts/generate-tlds.js`
+(`npm run generate-tlds`). Upstream's unrelated prettier churn in
+`SubtitleUploader.jsx` / `ConfigOverlay.jsx` was left out.
+
+What it does: on drop, scans subtitle dialogue for URLs, emails, IPv4
+addresses, obfuscated links (`example (dot) com`, `hxxp://`) and `@handles`,
+and opens a preview with a checkbox per match. Nothing changes without
+confirmation. Cues left holding only a link are dropped and SRT indexes
+renumbered; edits run over a byte-preserving latin1 view so non-UTF-8 files
+keep their encoding.
+
+**One deliberate difference from upstream — the default is changeable.**
+Upstream hard-codes `stripUrls: false`. This app saves its whole config on
+first launch, so that `false` would be frozen into every user's storage and a
+later default flip would only reach fresh installs. Here the stored value has
+three states — `true` / `false` once the user has moved the switch, `null`
+while they never have — and `null` follows one constant:
+
+```js
+// src/utils/constants.js
+export const STRIP_URLS_DEFAULT = false;
+```
+
+It ships `false`, matching upstream. To make link removal default-on, change
+that one line; everyone who has not explicitly chosen follows it.
+
+Verified in WebKit against the dev server with a cp1250 `.srt`: dialog opened,
+four links removed (URL, obfuscated, email, handle), the three false-positive
+traps left alone (`Stop.It's over`, `I know.Now go`, `example.commute`), cp1250
+bytes and CRLF endings intact. Fresh install → off, stored `null`; explicit
+on/off respected. **Not verified:** an actual upload of a cleaned file.
+
+> [!WARNING] Known limits
+> **It removes the link, not the sentence.** `Downloaded from www.example.com`
+> becomes `Downloaded from`. Upstream calls this "Layer 1, generic patterns
+> only" and says the private pattern list stays server-side. That is the gap
+> the osdb3 work can close — see below.
+>
+> **The duplicate check sees the original file.** The early `/upload/check`
+> hashes the subtitle as dropped, so after cleaning, the "already in database"
+> verdict refers to the uncleaned bytes. The upload itself re-reads and
+> re-hashes, so hash and content stay consistent. Upstream has the same order.
+
+## Where this meets osdb3
+
+osdb3 rejects ad-carrying uploads server-side (`SpamPattern`, kinds
+`filename | content | comment`, severities `reject | flag | log`, with allow
+patterns overriding deny). Three gaps keep the client and server halves apart:
+
+1. **`/subtitles/upload/check` does not scan content** — only filename
+   patterns. Content patterns run at upload time, so the user learns of a
+   rejection after doing all the work.
+2. **`SpamPattern#matches?` returns a boolean**, so the server cannot say
+   *where* the match is.
+3. **The uploader's message is wrong.** `errorCopy.js` renders `spam_content`
+   as "Subtitle too small" (written for the old size check) and never shows the
+   `rule_id` / literal `rule` osdb3 has returned since `8b9be412`.
+
+Proposed order: fix the message (3); run the content scan in `/upload/check`
+and return spans for literal patterns (1 + 2); feed those spans into the same
+preview dialog so the offer becomes "remove these and upload" rather than a
+refusal. Regex rules stay hidden, as now.
+
+## MKV fast path — landed, then hardened
+
+Ported in `cfa592a`. Four defects in the wrapper were fixed in `b6f2428`:
+
+- **Overlapping runs clobbered each other.** The fast path captures its ZIP by
+  replacing `URL.createObjectURL` and `document.createElement`, both
+  process-wide. Runs now take turns through a module-level queue.
+- **A clean "nothing to extract" fell through to ffmpeg** — a 180 s timeout,
+  then the whole file read into memory. It now returns `conclusive: true`.
+- **Unbuffered reads.** Two reads per cluster, thousands per film, each a
+  round trip on a network share. `utils/readAheadFile.js` serves them from an
+  8 MB window (27 real reads instead of 1,302 on a 203 MB episode) and fails a
+  read that stalls for 30 s with its offset.
+- **Leftovers:** `document.createElement` restored to a bound copy; the 180 s
+  fallback timer never cancelled.
+
+Corpus actually exercised: single-track SRT MKVs of 203 MB and 1.2 GB, in Node,
+Playwright WebKit and the system WKWebView (file picker and simulated native
+drop). **Still not exercised:** multi-track, an SDH-titled track, >2 GB, and
+ASS/PGS codecs — the list § 5 asked for.
+
+> [!WARNING] Open: a stall the maintainer saw that was never reproduced
+> In the Tauri dev app, a 1.2 GB local MKV sat on "Detecting MKV streams". The
+> same file extracts in ~1.2 s in a *visible* system WKWebView. Two leads:
+> a hidden or covered window makes WebKit throttle the page until the same
+> extraction crawls (reproduced), and Web Inspector was open in every failing
+> run (untested). The stall watchdog and the `[mkvfast]` progress lines were
+> added so the next occurrence says where it stopped.
+>
+> Also seen and not investigated: the file-picker route runs extraction twice
+> for one file — possibly only a dev-mode double render.

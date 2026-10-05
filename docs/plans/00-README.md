@@ -3,7 +3,7 @@ title: "Phase 2 — Fork & REST Migration Plans"
 aliases: [uploader-rest-migration, phase-2-master, plan-index]
 tags: [uploader, migration, plan-index, phase-2]
 created: 2026-04-15
-updated: 2026-09-01 — v2.0.0 released; env switch shipped; upstream fixes ported ([[12-upstream-drift-port]])
+updated: 2026-10-05 — upstream second pass; link remover ported; MKV fast path hardened; updater pipeline found broken ([[12-upstream-drift-port]])
 status: released — v2.0.0 shipped, v2.0.1 pending
 ---
 
@@ -25,7 +25,7 @@ status: released — v2.0.0 shipped, v2.0.1 pending
 9. [[09-migration-sequence]] — the actual step-by-step execution order
 10. [[10-risks-rollback]] — dual-endpoint preference, what can break, how to roll back
 11. [[11-stub-feature-from-imdb-tmdb]] — creating a stub feature when the title is unknown
-12. [[12-upstream-drift-port]] — fixes ported from upstream v1.8.10–v1.8.21 since the fork
+12. [[12-upstream-drift-port]] — fixes ported from upstream v1.8.10–v1.9.0 since the fork
 
 ## Status board
 
@@ -42,7 +42,7 @@ status: released — v2.0.0 shipped, v2.0.1 pending
 | 09 | [[09-migration-sequence]] | ✅ written | ✅ all 11 numbered steps committed |
 | 10 | [[10-risks-rollback]] | ✅ written | n/a (advisory doc; dual-endpoint toggle not shipped) |
 | 11 | [[11-stub-feature-from-imdb-tmdb]] | ✅ written | ✅ shipped (ui-steps 32-34) |
-| 12 | [[12-upstream-drift-port]] | ✅ written | 🟡 4 of 6 findings ported; MKV fast path outstanding |
+| 12 | [[12-upstream-drift-port]] | ✅ written | 🟡 first pass fully ported; second pass (v1.8.22–v1.9.0): link remover ported, updater pipeline + 3 smaller ports outstanding |
 
 ## Cross-repo references
 
@@ -76,7 +76,53 @@ status: released — v2.0.0 shipped, v2.0.1 pending
 
 ---
 
-## Current state (2026-09-01)
+## Current state (2026-10-05)
+
+> [!WARNING] Auto-update is very likely broken in v2.0.0
+> The published `latest.json` carries an empty signature for every platform and
+> points macOS at the `.dmg`. Details and the fix in [[12-upstream-drift-port]]
+> § The updater pipeline is broken in this fork. **Fix before the next release.**
+
+Test suite: **576 passing**. Nothing below is released; `main` is ahead of the
+`v2.0.0` tag.
+
+**Done on 2026-10-05:**
+
+- **Link remover** ported from upstream v1.9.0 — Settings → Processing →
+  "Remove Links from Subtitles". Off by default, as upstream ships it; the
+  default lives in one constant, `STRIP_URLS_DEFAULT` in `utils/constants.js`,
+  and can be flipped later for everyone who has not explicitly chosen.
+- **MKV fast path hardened** (`b6f2428`) — serialized runs, conclusive
+  "no subtitles", 8 MB read-ahead buffer with a stall watchdog.
+- **401s show the server's reason** (`0017820`) — Rails answers
+  `{ errors: [...] }`, which the client was replacing with a generic
+  "Authentication required".
+- **Upstream second pass** — v1.8.22 → v1.9.0 reviewed; verdicts in
+  [[12-upstream-drift-port]].
+
+**Dev backend (osdb3) — what broke when the ngrok host was renamed**
+
+The dev tunnel moved from `osdev.ngrok.dev` to `os-dev.ngrok.dev`. Four
+separate things failed in turn; all are fixed on the osdb3 side
+(`661649b7`, `8a5d3ee5`), recorded here because each one looked like an
+uploader bug:
+
+| Symptom in the uploader | Actual cause |
+|---|---|
+| Every call 401, even with no key | `restrict_access!` allow-lists the subdomain; the new one was not on it. Body said `Invalid domain` |
+| Login 200, then logged straight out | `/infos/user` 401 `User not found`. Dev shares production's Kong, whose `custom_id` is the *production* user id; the dev database numbers the same account differently. Dev now falls back to the consumer's username |
+| Posters still requested from the old host | `/features` serves straight from the search index, where the poster URL is frozen at index time. 2,938 documents in `dev_pg_features` were rewritten in place |
+| Posters blocked even on the right host | The uploader is cross-origin isolated (FFmpeg WASM) and needs `Cross-Origin-Resource-Policy: cross-origin`. Production's image hosts send it; dev's static file server did not |
+
+> [!NOTE] Still to confirm on osdb3
+> `KongUtilsFaraday.get_consumer` calls `fix_user_custom_id`, which **writes**
+> the local user id into the shared Kong. If that Kong is production's, a dev
+> login can overwrite a real account's `custom_id`.
+
+The example hostname in `.env.example`, the README and the tests is still the
+old `osdev.ngrok.dev`.
+
+## State as of the v2.0.0 release (2026-09-01)
 
 > [!SUCCESS] v2.0.0 released
 > Tagged `v2.0.0` and merged to `main`. GitHub Actions built all platforms; the
@@ -100,12 +146,17 @@ status: released — v2.0.0 shipped, v2.0.1 pending
 
 | Item | State |
 |---|---|
-| **v2.0.1 release** | ⬜ **Warranted.** The v2.0.0 binaries still carry the base64 bug, the orphan misclassification and the silent extraction failures — all fixed on `main` but unreleased. |
-| Push `39b3b5b` | ⬜ Committed locally, not yet pushed. |
+| **v2.0.1 release** | ⬜ **Warranted — after the updater fix.** The v2.0.0 binaries still carry the base64 bug, the orphan misclassification and the silent extraction failures — all fixed on `main` but unreleased. Releasing before the updater pipeline is fixed would publish another unverifiable manifest. |
+| **Updater pipeline** | 🔴 Port upstream `73953db` + `31ecc9a`. See [[12-upstream-drift-port]]. |
+| Spam rejection copy | ⬜ `spam_content` renders as "Subtitle too small" and hides the server's `rule_id` / `rule`. |
+| Error banner covers header | ⬜ Port upstream `38f1392`. |
+| Tauri 2.6 → 2.11 | ⬜ Own change; build on all three platforms. |
+| Link remover — real upload | ⬜ Verified up to the cleaned file; an actual upload of one was not run. |
+| MKV stall in the Tauri dev app | ⬜ Seen by the maintainer, never reproduced. Leads in [[12-upstream-drift-port]]. |
 | Kong routes for prod | ⬜ Blocked externally. Until they exist, prod is reachable only via the direct base-URL override. |
 | Production smoke test | ⬜ Blocked on the above. Procedure in [[08-testing-strategy]] §6. |
 | Env switch — browser check | ⬜ Unit-tested and built, but never opened in a browser. |
-| MKV fast path | ⬜ Deliberately not ported; needs real MKV files. Rationale in [[12-upstream-drift-port]] §5. |
+| MKV fast path | 🟡 Ported (`cfa592a`) and hardened (`b6f2428`). Corpus still thin: no multi-track, SDH-titled, >2 GB or ASS/PGS file exercised. |
 | `trackTitle` SDH wiring | ⬜ Predicate is tested; the component wiring is not (no React harness). |
 
 ### Known defects (tracked, not yet fixed)
