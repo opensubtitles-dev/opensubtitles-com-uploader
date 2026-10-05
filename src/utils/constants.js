@@ -25,6 +25,21 @@ export { DEFAULT_BASE_URL, normalizeBaseUrl } from './normalizeBaseUrl.js';
 
 export const OPENSUBTITLES_BASE_URL = getActiveEnvironment().baseUrl;
 
+// Link removal — Settings → Processing → "Remove Links from Subtitles".
+//
+// THIS is the one place its default lives; flip it here and nowhere else.
+//
+// The setting is stored as `stripUrls` in the saved config, and it has three
+// states, not two: `true` / `false` once the user has moved the switch, and
+// `null` while they never have. `null` follows this constant. That third state
+// is what makes the default changeable later — the app saves its whole config
+// on first launch, so a plain `false` default would be frozen into everyone's
+// storage and a new default would only ever reach fresh installs.
+export const STRIP_URLS_DEFAULT = false;
+
+export const isLinkRemovalEnabled = config =>
+  typeof config?.stripUrls === 'boolean' ? config.stripUrls : STRIP_URLS_DEFAULT;
+
 // User Agent for all API requests
 export const USER_AGENT = `OpenSubtitles Uploader PRO v${APP_VERSION}`;
 

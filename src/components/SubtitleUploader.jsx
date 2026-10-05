@@ -74,6 +74,7 @@ if (typeof window !== 'undefined') {
 
 import { useDebugMode } from '../hooks/useDebugMode.js';
 import { useFileHandling } from '../hooks/useFileHandling.js';
+import { useLinkSanitizer } from '../hooks/useLinkSanitizer.js';
 import { useLanguageData } from '../hooks/useLanguageData.js';
 import { useLanguageDetection } from '../hooks/useLanguageDetection.js';
 import { useMovieGuess } from '../hooks/useMovieGuess.js';
@@ -99,6 +100,7 @@ import { OrphanedSubtitles } from './OrphanedSubtitles.jsx';
 import { LanguageFilter } from './LanguageFilter.jsx';
 import { StatsPanel } from './StatsPanel.jsx';
 import { SubtitlePreview } from './SubtitlePreview.jsx';
+import { LinkSanitizePreview } from './LinkSanitizePreview.jsx';
 import { UploadButton } from './UploadButton.jsx';
 import { ApiHealthCheck } from './ApiHealthCheck.jsx';
 import { ConfigOverlay } from './ConfigOverlay.jsx';
@@ -107,7 +109,7 @@ import ProgressOverlay from './ProgressOverlay.jsx';
 import { ThemeProvider, useTheme } from '../contexts/ThemeContext.jsx';
 import LoginDialog from './LoginDialog.jsx';
 import { getThemeStyles, createHoverHandlers } from '../utils/themeUtils.js';
-import { APP_VERSION } from '../utils/constants.js';
+import { APP_VERSION, isLinkRemovalEnabled } from '../utils/constants.js';
 import { SessionManager } from '../services/sessionManager.js';
 import TestModePanel from './TestModePanel.jsx';
 import UserProfile from './UserProfile.jsx';
@@ -190,6 +192,7 @@ function SubtitleUploaderInner() {
     defaultTranslator: '', // Default translator for all subtitles (empty = no default)
     uploadMovieHashOnly: false, // Only update movie hashes, don't upload subtitles (default = false)
     extractMkvSubtitles: true, // Enable MKV subtitle extraction by default (v1.8.1 API)
+    stripUrls: null, // Link removal: null = never chosen, follows STRIP_URLS_DEFAULT
   };
 
   // Config state - initialize with defaults and immediately load from localStorage
@@ -314,6 +317,18 @@ function SubtitleUploaderInner() {
     updateFile,
     setFiles,
   } = useFileHandling(addDebugInfo, config);
+
+  // Offer to strip URLs/emails/handles from dropped subtitles (never silent).
+  // Whether it is on by default is decided in utils/constants.js.
+  const {
+    reports: linkReports,
+    isReviewOpen: isLinkReviewOpen,
+    toggleMatch: toggleLinkMatch,
+    toggleFile: toggleLinkFile,
+    applyChanges: applyLinkChanges,
+    dismiss: dismissLinkReview,
+    resetScanState: resetLinkScanState,
+  } = useLinkSanitizer(files, isLinkRemovalEnabled(config), updateFile, addDebugInfo);
 
   // Override drag handlers to prevent default behavior when files already dropped
   const handleDragOver = useCallback(
@@ -2176,6 +2191,7 @@ function SubtitleUploaderInner() {
 
     // Clear files and UI state
     clearFiles();
+    resetLinkScanState(); // Let a re-drop of the same path be scanned again
     clearDebugInfo();
     setError(null);
     setPreviewSubtitle(null);
@@ -2830,6 +2846,19 @@ function SubtitleUploaderInner() {
             subtitle={previewSubtitle}
             content={subtitleContent}
             onClose={closeSubtitlePreview}
+            colors={colors}
+            isDark={isDark}
+          />
+        )}
+
+        {/* Link Removal Review Modal */}
+        {isLinkReviewOpen && linkReports.length > 0 && (
+          <LinkSanitizePreview
+            reports={linkReports}
+            onToggleMatch={toggleLinkMatch}
+            onToggleFile={toggleLinkFile}
+            onApply={applyLinkChanges}
+            onCancel={dismissLinkReview}
             colors={colors}
             isDark={isDark}
           />

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import UpdateSettings from './UpdateSettings.jsx';
+import { isLinkRemovalEnabled } from '../utils/constants.js';
 
 export const ConfigOverlay = ({
   isOpen,
@@ -129,6 +130,7 @@ export const ConfigOverlay = ({
       extractMkvSubtitles: true,
       uploadMovieHashOnly: false,
       uploadAsAnonymous: false,
+      stripUrls: null, // back to "never chosen": follows STRIP_URLS_DEFAULT
     };
     setLocalConfig(defaultConfig);
     onConfigChange(defaultConfig);
@@ -734,6 +736,52 @@ export const ConfigOverlay = ({
                   </label>
                 </div>
               </div>
+
+              {/* Minimal separator line */}
+              <div className="h-px" style={{ backgroundColor: colors.border, opacity: 0.3 }} />
+
+              {/* Remove Links Setting */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="block text-sm font-medium" style={{ color: colors.text }}>
+                    Remove Links from Subtitles
+                  </label>
+                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                    Find URLs, emails, IP addresses, obfuscated links and social handles in dropped
+                    subtitles and offer to strip them. Shows a preview first — nothing is changed
+                    without your confirmation.
+                  </p>
+                </div>
+                <div className="ml-4">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isLinkRemovalEnabled(localConfig)}
+                      onChange={e => handleChange('stripUrls', e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div
+                      className="w-11 h-6 rounded-full peer transition-colors duration-200 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"
+                      style={{
+                        backgroundColor:
+                          isLinkRemovalEnabled(localConfig) ? colors.success : colors.border,
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+              {isLinkRemovalEnabled(localConfig) && (
+                <div
+                  className="flex items-start gap-2 text-xs"
+                  style={{ color: colors.textSecondary }}
+                >
+                  <span>ℹ️</span>
+                  <span>
+                    Cues left with nothing but a link are dropped and the remaining ones are
+                    renumbered. Timing and file encoding are preserved byte-for-byte.
+                  </span>
+                </div>
+              )}
 
               {/* Minimal separator line */}
               <div className="h-px" style={{ backgroundColor: colors.border, opacity: 0.3 }} />

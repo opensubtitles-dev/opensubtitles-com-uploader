@@ -128,3 +128,32 @@ describe('environment-scoped CACHE_KEYS', () => {
     assert.deepEqual(CACHE_KEYS, buildCacheKeys(getActiveEnvironmentId()));
   });
 });
+
+import { STRIP_URLS_DEFAULT, isLinkRemovalEnabled } from '../../src/utils/constants.js';
+
+/**
+ * Link removal has three stored states so that its default can be changed
+ * after release: an explicit true/false is the user's choice and always wins;
+ * anything else means "never chosen" and follows STRIP_URLS_DEFAULT.
+ */
+describe('link removal default', () => {
+  test('ships off, matching upstream', () => {
+    assert.equal(STRIP_URLS_DEFAULT, false);
+  });
+
+  test('an explicit choice wins over the default, either way', () => {
+    assert.equal(isLinkRemovalEnabled({ stripUrls: true }), true);
+    assert.equal(isLinkRemovalEnabled({ stripUrls: false }), false);
+  });
+
+  test('never-chosen follows the default', () => {
+    assert.equal(isLinkRemovalEnabled({ stripUrls: null }), STRIP_URLS_DEFAULT);
+    assert.equal(isLinkRemovalEnabled({}), STRIP_URLS_DEFAULT);
+    assert.equal(isLinkRemovalEnabled(undefined), STRIP_URLS_DEFAULT);
+  });
+
+  test('a stray non-boolean is not mistaken for a choice', () => {
+    assert.equal(isLinkRemovalEnabled({ stripUrls: 'true' }), STRIP_URLS_DEFAULT);
+    assert.equal(isLinkRemovalEnabled({ stripUrls: 1 }), STRIP_URLS_DEFAULT);
+  });
+});
