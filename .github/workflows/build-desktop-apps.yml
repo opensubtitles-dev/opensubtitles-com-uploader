@@ -166,6 +166,75 @@ jobs:
             exit 1
           fi
 
+      - name: Build the app (Linux AppImage only)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        env:
+          VITE_OPENSUBTITLES_API_KEY: ${{ secrets.VITE_OPENSUBTITLES_API_KEY }}
+          VITE_OPENSUBTITLES_API_KEY_PROD: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_PROD || secrets.VITE_OPENSUBTITLES_API_KEY }}
+          VITE_OPENSUBTITLES_API_KEY_DEV: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_DEV }}
+          NODE_ENV: production
+          # Tauri v2 reads TAURI_SIGNING_*. The v1 names used here before were
+          # ignored, so no updater signature was ever produced.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+        run: |
+          echo "🐧 Building Linux with basic debugging..."
+          echo "Debug - Environment info:"
+          echo "Node: $(node --version)"
+          echo "NPM: $(npm --version)"
+          echo "Rust: $(rustc --version)"
+          echo "Cargo: $(cargo --version)"
+          echo "PWD: $(pwd)"
+          echo "Available disk space: $(df -h . | tail -1)"
+          
+          echo "🔧 Trying minimal Linux build..."
+          if npm run tauri build -- --bundles appimage,deb --verbose 2>&1 | tee linux-build.log; then
+            echo "✅ Linux build successful"
+            echo "🔍 Generated files:"
+            find src-tauri/target -name "*.AppImage" -o -name "*.deb" | head -10
+          else
+            echo "❌ Linux build failed, showing logs:"
+            tail -100 linux-build.log
+            echo "=== Checking for specific error patterns ==="
+            grep -i "error\|failed\|panic" linux-build.log | tail -10 || echo "No obvious errors found"
+            exit 1
+          fi
+
+      - name: Build the app (Windows)
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        shell: bash
+        env:
+          VITE_OPENSUBTITLES_API_KEY: ${{ secrets.VITE_OPENSUBTITLES_API_KEY }}
+          VITE_OPENSUBTITLES_API_KEY_PROD: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_PROD || secrets.VITE_OPENSUBTITLES_API_KEY }}
+          VITE_OPENSUBTITLES_API_KEY_DEV: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_DEV }}
+          NODE_ENV: production
+          # Tauri v2 reads TAURI_SIGNING_*. The v1 names used here before were
+          # ignored, so no updater signature was ever produced.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+        run: |
+          echo "🪟 Building Windows with basic debugging..."
+          echo "Debug - Environment info:"
+          echo "Node: $(node --version)"
+          echo "NPM: $(npm --version)"
+          echo "Rust: $(rustc --version)"
+          echo "Cargo: $(cargo --version)"
+          echo "Working directory: $(pwd)"
+          echo "Available disk space: $(df -h . | tail -1)"
+          
+          echo "🔧 Trying minimal Windows build..."
+          if npm run tauri build -- --bundles nsis --verbose 2>&1 | tee windows-build.log; then
+            echo "✅ Windows build successful"
+            echo "🔍 Generated files:"
+            find src-tauri/target -name "*.exe" -o -name "*.json" | head -10
+          else
+            echo "❌ Windows build failed, showing logs:"
+            tail -100 windows-build.log
+            echo "=== Checking for specific error patterns ==="
+            grep -i "error\|failed\|panic" windows-build.log | tail -10 || echo "No obvious errors found"
+            exit 1
+          fi
+
       - name: Collect updater artifact and signature
         shell: bash
         run: |
@@ -276,75 +345,6 @@ jobs:
           fi
           
           echo "✅ macOS artifacts upload attempt completed"
-
-      - name: Build the app (Linux AppImage only)
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        env:
-          VITE_OPENSUBTITLES_API_KEY: ${{ secrets.VITE_OPENSUBTITLES_API_KEY }}
-          VITE_OPENSUBTITLES_API_KEY_PROD: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_PROD || secrets.VITE_OPENSUBTITLES_API_KEY }}
-          VITE_OPENSUBTITLES_API_KEY_DEV: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_DEV }}
-          NODE_ENV: production
-          # Tauri v2 reads TAURI_SIGNING_*. The v1 names used here before were
-          # ignored, so no updater signature was ever produced.
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-        run: |
-          echo "🐧 Building Linux with basic debugging..."
-          echo "Debug - Environment info:"
-          echo "Node: $(node --version)"
-          echo "NPM: $(npm --version)"
-          echo "Rust: $(rustc --version)"
-          echo "Cargo: $(cargo --version)"
-          echo "PWD: $(pwd)"
-          echo "Available disk space: $(df -h . | tail -1)"
-          
-          echo "🔧 Trying minimal Linux build..."
-          if npm run tauri build -- --bundles appimage,deb --verbose 2>&1 | tee linux-build.log; then
-            echo "✅ Linux build successful"
-            echo "🔍 Generated files:"
-            find src-tauri/target -name "*.AppImage" -o -name "*.deb" | head -10
-          else
-            echo "❌ Linux build failed, showing logs:"
-            tail -100 linux-build.log
-            echo "=== Checking for specific error patterns ==="
-            grep -i "error\|failed\|panic" linux-build.log | tail -10 || echo "No obvious errors found"
-            exit 1
-          fi
-
-      - name: Build the app (Windows)
-        if: matrix.target == 'x86_64-pc-windows-msvc'
-        shell: bash
-        env:
-          VITE_OPENSUBTITLES_API_KEY: ${{ secrets.VITE_OPENSUBTITLES_API_KEY }}
-          VITE_OPENSUBTITLES_API_KEY_PROD: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_PROD || secrets.VITE_OPENSUBTITLES_API_KEY }}
-          VITE_OPENSUBTITLES_API_KEY_DEV: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_DEV }}
-          NODE_ENV: production
-          # Tauri v2 reads TAURI_SIGNING_*. The v1 names used here before were
-          # ignored, so no updater signature was ever produced.
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-        run: |
-          echo "🪟 Building Windows with basic debugging..."
-          echo "Debug - Environment info:"
-          echo "Node: $(node --version)"
-          echo "NPM: $(npm --version)"
-          echo "Rust: $(rustc --version)"
-          echo "Cargo: $(cargo --version)"
-          echo "Working directory: $(pwd)"
-          echo "Available disk space: $(df -h . | tail -1)"
-          
-          echo "🔧 Trying minimal Windows build..."
-          if npm run tauri build -- --bundles nsis --verbose 2>&1 | tee windows-build.log; then
-            echo "✅ Windows build successful"
-            echo "🔍 Generated files:"
-            find src-tauri/target -name "*.exe" -o -name "*.json" | head -10
-          else
-            echo "❌ Windows build failed, showing logs:"
-            tail -100 windows-build.log
-            echo "=== Checking for specific error patterns ==="
-            grep -i "error\|failed\|panic" windows-build.log | tail -10 || echo "No obvious errors found"
-            exit 1
-          fi
 
       - name: Upload Linux artifacts to release
         if: matrix.target == 'x86_64-unknown-linux-gnu' && env.PUBLISH == 'true'
