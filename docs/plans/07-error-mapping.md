@@ -47,7 +47,10 @@ HTTP status matches the error semantics (401, 403, 404, 409, 422, 429). `error_c
 | (new) banned UA/IP/consumer | 403 | `banned` | "Uploads are currently not permitted from this setup" + `details.reason` |
 | (new) anon + duplicate language | 403 | `anon_duplicate_language` | "Anonymous uploads cannot duplicate existing language — log in or choose different" |
 | (new) filename spam (reject severity) | 403 | `spam_filename` | "Filename is not permitted — try renaming" |
-| (new) feature not found for IMDb | 422 | `feature_not_found` | "Movie not in database — [Create new entry]" (triggers stub flow) |
+| (new) feature not found for IMDb | 422 | `feature_not_found` | "Title not in database — [Create new entry]" (triggers stub flow) |
+| (new) no title identified at all (no feature_id / idmovieimdb / tmdbid) | 422 | `feature_required` | "Pick a movie or episode" |
+| (new 2026-10-08) show found, that season/episode not found | 422 | `episode_not_found` | "Episode not found" + server message (names the S/E). Fix: check numbering, or upload against the episode's own IMDb id. Before 2026-10-08 the server silently attached the subtitle to the show instead. |
+| (new) no language sent | 400 | `language_required` | "Pick a language" |
 
 ### 2.3 `/subtitles/upload` (commit — replaces `UploadSubtitles`)
 

@@ -33,12 +33,20 @@ describe('errorCopy', () => {
     assert.equal(r.code, 'http_503');
   });
 
+  test('episode_not_found shows the server message naming the season/episode', () => {
+    const message = 'Season 2 episode 5 was not found for that show.';
+    const r = errorCopy({ code: 'episode_not_found', message });
+    assert.match(r.title, /episode not found/i);
+    assert.equal(r.body, message);
+  });
+
   test('handles every plan-listed code without throwing', () => {
     const codes = [
       'offline', 'network_error', 'timeout', 'server_error',
       'unauthorized', 'banned', 'quota_exceeded', 'duplicate',
       'spam_filename', 'spam_content', 'anon_duplicate_language',
-      'feature_not_found', 'invalid_language', 'invalid_content',
+      'feature_not_found', 'feature_required', 'episode_not_found',
+      'invalid_language', 'language_required', 'invalid_content',
       'invalid_type', 'subhash_mismatch', 'validation_error',
       'missing_title', 'not_found', 'unknown',
     ];

@@ -18,8 +18,13 @@ export const ERROR_COPY = Object.freeze({
   spam_filename:           { icon: '⚠️', title: 'Filename not allowed', body: 'Try renaming the subtitle file.' },
   spam_content:            { icon: '🗑️', title: 'Subtitle too small', body: 'The subtitle file looks like spam — too small to be valid.' },
   anon_duplicate_language: { icon: '👤', title: 'Not allowed for guests', body: 'Anonymous uploads cannot duplicate an existing language. Log in, or pick a different language.', showLogin: true },
-  feature_not_found:       { icon: '🎬', title: 'Movie not in database', body: 'Use "Create new entry" to register a provisional title.' },
+  feature_not_found:       { icon: '🎬', title: 'Title not in database', body: 'Use "Create new entry" to register a provisional title.' },
+  feature_required:        { icon: '🎬', title: 'Pick a movie or episode', body: 'Choose which movie or episode this subtitle belongs to before uploading.' },
+  // The show was found but not that season/episode. body: null on purpose — the
+  // server message names the exact season and episode it could not place.
+  episode_not_found:       { icon: '📺', title: 'Episode not found', body: null },
   invalid_language:        { icon: '🌐', title: 'Unknown language', body: null },
+  language_required:       { icon: '🌐', title: 'Pick a language', body: 'Choose the subtitle language before uploading.' },
   invalid_content:         { icon: '❌', title: 'Corrupt subtitle', body: 'The subtitle file could not be read.' },
   invalid_type:            { icon: '📂', title: 'Invalid type', body: 'Type must be movie, tvshow, or episode.' },
   subhash_mismatch:        { icon: '🔄', title: 'File changed during upload', body: 'Please restart the upload.' },
