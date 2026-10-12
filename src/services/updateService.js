@@ -1,5 +1,6 @@
 import { APP_VERSION } from '../utils/constants.js';
 import { logUpdaterDiagnostics } from '../utils/appLogger.js';
+import { installerFileName, installerUrl } from '../utils/releaseAssets.js';
 
 // Import Tauri APIs directly - they'll be available when bundled in production
 let tauriUpdater = null;
@@ -1336,16 +1337,11 @@ Test completed successfully! ✅`;
   getDefaultFileName(version, platform) {
     const cleanVersion = version.replace(/^v/, '');
 
-    switch (platform) {
-      case 'windows':
-        return `OpenSubtitles.Uploader.PRO_${cleanVersion}_x64-setup.exe`;
-      case 'macos':
-        return `OpenSubtitles.Uploader.PRO_${cleanVersion}_universal.dmg`;
-      case 'linux':
-        return `opensubtitles-uploader-pro_${cleanVersion}_amd64.AppImage`;
-      default:
-        return `opensubtitles-uploader-pro-${cleanVersion}.bin`;
-    }
+    // Real asset names live in utils/releaseAssets.js. The fallback is only a
+    // local file name for a platform we do not ship an installer for.
+    return (
+      installerFileName(cleanVersion, platform) || `opensubtitles-uploader-${cleanVersion}.bin`
+    );
   }
 
   /**
@@ -1355,6 +1351,9 @@ Test completed successfully! ✅`;
    * @returns {string} Download URL
    */
   constructDownloadUrl(version, platform) {
+    const known = installerUrl(version, platform);
+    if (known) return known;
+
     const fileName = this.getDefaultFileName(version, platform);
     const versionTag = version.startsWith('v') ? version : `v${version}`;
     return `https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/${versionTag}/${fileName}`;

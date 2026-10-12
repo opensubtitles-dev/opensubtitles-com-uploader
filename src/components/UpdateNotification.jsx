@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAppUpdate } from '../hooks/useAppUpdate.js';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 import { getChangelogSummary } from '../utils/changelogUtils.js';
+import { installerFileName, installerUrl } from '../utils/releaseAssets.js';
 
 /**
  * Update notification component
@@ -43,23 +44,26 @@ const UpdateNotification = () => {
     // Determine platform
     let platformType = 'unknown';
     let fileExtension = '';
-    let fileName = '';
+    let platformKey = null;
 
     if (platform.includes('mac') || userAgent.includes('mac')) {
       platformType = 'macOS';
-      fileName = `OpenSubtitles.Uploader.PRO_${version}_universal.dmg`;
+      platformKey = 'macos';
       fileExtension = '.dmg';
     } else if (platform.includes('win') || userAgent.includes('windows')) {
       platformType = 'Windows';
-      fileName = `OpenSubtitles.Uploader.PRO_${version}_x64-setup.exe`;
+      platformKey = 'windows';
       fileExtension = '.exe';
     } else if (platform.includes('linux') || userAgent.includes('linux')) {
       platformType = 'Linux';
-      fileName = `OpenSubtitles.Uploader.PRO_${version}_amd64.AppImage`;
+      platformKey = 'linux';
       fileExtension = '.AppImage';
     }
 
-    const directUrl = `https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/v${version}/${fileName}`;
+    // Names come from utils/releaseAssets.js — written out by hand here they
+    // pointed at files the release never contained.
+    const fileName = installerFileName(version, platformKey) || '';
+    const directUrl = installerUrl(version, platformKey);
 
     return {
       url: directUrl,

@@ -2,9 +2,20 @@ name: Build Desktop Apps
 
 on:
   workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Publish to the GitHub release. Leave off for a dry run: build, sign and validate the updater manifest without touching any release.'
+        type: boolean
+        default: false
   push:
     tags:
       - 'v*'
+
+# A tag push always publishes. A manual run publishes only when asked to, so
+# the whole pipeline — including signing and the updater manifest — can be
+# exercised without overwriting the assets of an existing release.
+env:
+  PUBLISH: ${{ startsWith(github.ref, 'refs/tags/') || inputs.create_release == true }}
 
 jobs:
   build-tauri:
@@ -118,8 +129,10 @@ jobs:
           VITE_OPENSUBTITLES_API_KEY_PROD: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_PROD || secrets.VITE_OPENSUBTITLES_API_KEY }}
           VITE_OPENSUBTITLES_API_KEY_DEV: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_DEV }}
           NODE_ENV: production
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          # Tauri v2 reads TAURI_SIGNING_*. The v1 names used here before were
+          # ignored, so no updater signature was ever produced.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: |
           echo "🍎 Building macOS with basic debugging..."
           echo "Debug - Environment info:"
@@ -131,7 +144,10 @@ jobs:
           echo "Available disk space: $(df -h . | tail -1)"
           
           echo "🔧 Trying basic macOS build..."
-          if npm run tauri build -- --bundles dmg --target universal-apple-darwin --verbose 2>&1 | tee macos-build.log; then
+          # "app" must be listed with "dmg": --bundles overrides "targets": "all",
+          # and the .app.tar.gz the updater installs is only emitted when the app
+          # bundle is built. With dmg alone there is nothing to update from.
+          if npm run tauri build -- --bundles app,dmg --target universal-apple-darwin --verbose 2>&1 | tee macos-build.log; then
             echo "✅ macOS build successful"
             echo "🔍 Generated files:"
             find src-tauri/target -name "*.dmg" -o -name "*.app" | head -10
@@ -150,6 +166,39 @@ jobs:
             exit 1
           fi
 
+      - name: Collect updater artifact and signature
+        shell: bash
+        run: |
+          # The one file per platform the updater installs, and its signature.
+          case "${{ matrix.os }}" in
+            macos)   PATTERN='*.app.tar.gz' ;;
+            windows) PATTERN='*setup.exe' ;;
+            linux)   PATTERN='*.AppImage' ;;
+          esac
+
+          ARTIFACT=$(find src-tauri/target -type f -name "$PATTERN" | head -1)
+          if [ -z "$ARTIFACT" ]; then
+            echo "::error::No updater artifact ($PATTERN) was built for ${{ matrix.os }} — auto-update would be broken"
+            exit 1
+          fi
+          if [ ! -s "$ARTIFACT.sig" ]; then
+            echo "::error::$ARTIFACT has no signature — is the signing key set, and createUpdaterArtifacts enabled?"
+            exit 1
+          fi
+
+          mkdir -p updater-out
+          cp "$ARTIFACT" "$ARTIFACT.sig" updater-out/
+          echo "✅ Updater artifact and signature:"
+          ls -la updater-out
+
+      - name: Keep the updater signature for the manifest job
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-sig-${{ matrix.os }}
+          path: updater-out/*.sig
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Get version for release
         id: version
         shell: bash
@@ -163,7 +212,7 @@ jobs:
           echo "📦 Release version: $VERSION"
 
       - name: Ensure release exists
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        if: env.PUBLISH == 'true'
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -191,7 +240,7 @@ jobs:
           fi
 
       - name: Upload macOS Universal artifacts to release
-        if: matrix.target == 'universal-apple-darwin' && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
+        if: matrix.target == 'universal-apple-darwin' && env.PUBLISH == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -235,8 +284,10 @@ jobs:
           VITE_OPENSUBTITLES_API_KEY_PROD: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_PROD || secrets.VITE_OPENSUBTITLES_API_KEY }}
           VITE_OPENSUBTITLES_API_KEY_DEV: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_DEV }}
           NODE_ENV: production
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          # Tauri v2 reads TAURI_SIGNING_*. The v1 names used here before were
+          # ignored, so no updater signature was ever produced.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: |
           echo "🐧 Building Linux with basic debugging..."
           echo "Debug - Environment info:"
@@ -268,8 +319,10 @@ jobs:
           VITE_OPENSUBTITLES_API_KEY_PROD: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_PROD || secrets.VITE_OPENSUBTITLES_API_KEY }}
           VITE_OPENSUBTITLES_API_KEY_DEV: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_DEV }}
           NODE_ENV: production
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          # Tauri v2 reads TAURI_SIGNING_*. The v1 names used here before were
+          # ignored, so no updater signature was ever produced.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: |
           echo "🪟 Building Windows with basic debugging..."
           echo "Debug - Environment info:"
@@ -294,7 +347,7 @@ jobs:
           fi
 
       - name: Upload Linux artifacts to release
-        if: matrix.target == 'x86_64-unknown-linux-gnu' && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
+        if: matrix.target == 'x86_64-unknown-linux-gnu' && env.PUBLISH == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -331,7 +384,7 @@ jobs:
           fi
 
       - name: Upload Windows artifacts to release
-        if: matrix.target == 'x86_64-pc-windows-msvc' && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
+        if: matrix.target == 'x86_64-pc-windows-msvc' && env.PUBLISH == 'true'
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -370,22 +423,35 @@ jobs:
           
           echo "✅ Windows artifacts upload attempt completed"
 
+      - name: Upload updater artifact and signature to release
+        if: env.PUBLISH == 'true'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Unlike the installer uploads above, a failure here fails the job:
+          # the manifest points at these exact files.
+          gh release upload "${{ steps.version.outputs.VERSION }}" updater-out/* --clobber
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: desktop-app-${{ matrix.os }}-${{ matrix.arch }}
+          # Linux and Windows build without --target, so their bundles sit one
+          # level higher than the macOS ones.
           path: |
+            src-tauri/target/release/bundle/
             src-tauri/target/*/release/bundle/
+            !src-tauri/target/release/bundle/**/.*
             !src-tauri/target/*/release/bundle/**/.*
           retention-days: 30
 
   generate-updater-manifest:
     needs: build-tauri
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -393,14 +459,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
-      - name: Wait for release assets to be available
-        run: |
-          echo "⏳ Waiting 30 seconds for all release assets to be fully available..."
-          sleep 30
+      - name: Fetch the updater signatures from the build jobs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: updater-sig-*
+          path: updater-sigs
+          merge-multiple: true
 
-      - name: Get version for manifest  
+      - name: Get version for manifest
         id: version
         shell: bash
         run: |
@@ -412,80 +480,44 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "📦 Manifest version: $VERSION"
 
-      - name: Generate and upload Tauri updater manifest
+      - name: Read release notes and assets
+        if: env.PUBLISH == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "📦 Generating Tauri updater manifest for ${{ steps.version.outputs.VERSION }}..."
-          
-          # Read version from the tag (remove 'v' prefix if present)
           VERSION="${{ steps.version.outputs.VERSION }}"
-          VERSION_NUM="${VERSION#v}"
-          
-          echo "Version: $VERSION_NUM"
-          
-          # Check which macOS file format was actually uploaded
-          echo "🔍 Checking available release assets for macOS file format..."
-          ASSETS=$(gh release view "$VERSION" --json assets --jq '.assets[].name')
-          echo "Available assets:"
-          echo "$ASSETS"
-          
-          # Determine macOS file URL based on what actually exists
-          if echo "$ASSETS" | grep -q "universal\.dmg"; then
-            MACOS_URL="https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/$VERSION/OpenSubtitles.Uploader.PRO_${VERSION_NUM}_universal.dmg"
-            echo "✅ Found DMG file, using: $MACOS_URL"
-          elif echo "$ASSETS" | grep -q "_macos\.tar\.gz"; then
-            MACOS_URL="https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/$VERSION/OpenSubtitles.Uploader.PRO_macos.tar.gz"
-            echo "✅ Found tar.gz file, using: $MACOS_URL"
-          else
-            echo "❌ No macOS file found (neither .dmg nor .tar.gz)"
-            MACOS_URL="https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/$VERSION/OpenSubtitles.Uploader.PRO_${VERSION_NUM}_universal.dmg"
-            echo "⚠️ Falling back to DMG URL: $MACOS_URL"
-          fi
-          
-          # Fetch actual release notes from GitHub
-          echo "📝 Fetching release notes for $VERSION..."
-          RELEASE_NOTES=$(gh release view "$VERSION" --json body | jq -r '.body // "OpenSubtitles Uploader PRO '"$VERSION"' - New release with improvements and bug fixes"')
-          
-          # Escape quotes and newlines for JSON (Linux compatible)
-          RELEASE_NOTES_ESCAPED=$(echo "$RELEASE_NOTES" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
-          
-          # Create updater manifest with proper Tauri v2 format and actual release notes
-          cat > latest.json << EOF
-          {
-            "version": "$VERSION",
-            "notes": "$RELEASE_NOTES_ESCAPED",
-            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "platforms": {
-              "windows-x86_64": {
-                "signature": "",
-                "url": "https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/$VERSION/OpenSubtitles.Uploader.PRO_${VERSION_NUM}_x64-setup.exe"
-              },
-              "darwin-universal": {
-                "signature": "",
-                "url": "$MACOS_URL"
-              },
-              "darwin-x86_64": {
-                "signature": "",
-                "url": "$MACOS_URL"
-              },
-              "darwin-aarch64": {
-                "signature": "",
-                "url": "$MACOS_URL"
-              },
-              "linux-x86_64": {
-                "signature": "",
-                "url": "https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/$VERSION/OpenSubtitles.Uploader.PRO_${VERSION_NUM}_amd64.AppImage"
-              }
-            }
-          }
-          EOF
-          
-          echo "📋 Generated manifest:"
-          cat latest.json | jq '.' || cat latest.json
-          
-          echo "📤 Uploading updater manifest to release..."
-          gh release upload "$VERSION" latest.json --clobber
-          
-          echo "✅ Updater manifest uploaded successfully"
+          echo "⏳ Waiting 30 seconds for release assets to settle..."
+          sleep 30
+          gh release view "$VERSION" --json body --jq '.body // ""' > release-notes.txt
+          gh release view "$VERSION" --json assets --jq '.assets[].name' > release-assets.txt
+          echo "Release assets:"
+          cat release-assets.txt
 
+      - name: Generate and validate the updater manifest
+        run: |
+          # The script exits non-zero, with ::error:: annotations, rather than
+          # write a manifest that would break auto-update. When publishing, it
+          # also checks every URL against the assets actually on the release.
+          ARGS=(--version "${{ steps.version.outputs.VERSION }}" --repo "${{ github.repository }}" --sig-dir updater-sigs --out latest.json)
+          if [ "$PUBLISH" = "true" ]; then
+            ARGS+=(--notes-file release-notes.txt --assets-file release-assets.txt)
+          fi
+          node scripts/build/generate-updater-manifest.js "${ARGS[@]}"
+          echo "📋 Manifest:"
+          cat latest.json
+
+      - name: Keep the manifest as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-manifest
+          path: latest.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish the manifest to the release
+        if: env.PUBLISH == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ steps.version.outputs.VERSION }}" latest.json --clobber
+          echo "✅ Updater manifest published"

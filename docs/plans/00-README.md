@@ -147,7 +147,7 @@ old `osdev.ngrok.dev`.
 | Item | State |
 |---|---|
 | **v2.0.1 release** | ⬜ **Warranted — after the updater fix.** The v2.0.0 binaries still carry the base64 bug, the orphan misclassification and the silent extraction failures — all fixed on `main` but unreleased. Releasing before the updater pipeline is fixed would publish another unverifiable manifest. |
-| **Updater pipeline** | 🔴 Port upstream `73953db` + `31ecc9a`. See [[12-upstream-drift-port]]. |
+| **Updater pipeline** | 🟡 Fixed in the workflow, script and app on 2026-10-12; **needs one dry run in CI** (`gh workflow run "Build Desktop Apps" -R opensubtitles-dev/opensubtitles-com-uploader`) before it can be called working. See [[12-upstream-drift-port]]. |
 | Spam rejection copy | ⬜ `spam_content` renders as "Subtitle too small" and hides the server's `rule_id` / `rule`. |
 | Error banner covers header | ⬜ Port upstream `38f1392`. |
 | Tauri 2.6 → 2.11 | ⬜ Own change; build on all three platforms. |

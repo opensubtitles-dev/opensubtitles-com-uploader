@@ -1,184 +1,198 @@
 #!/usr/bin/env node
-
 /**
- * Generate Tauri updater manifest (latest.json)
- * This creates the proper format that Tauri updater expects
+ * Builds latest.json, the manifest the Tauri updater reads.
+ *
+ * It exists as a script, not as shell inside the workflow, because the inline
+ * version shipped a manifest for v2.0.0 in which every signature was empty and
+ * every URL was a 404 — and nothing noticed. Two rules follow from that:
+ *
+ *   - Nothing is hardcoded. URLs are derived from the signature files the
+ *     build actually produced, so the manifest cannot name a file that was
+ *     never built. (The old one named "OpenSubtitles.Uploader.PRO_…" assets
+ *     in a repository whose product is called "OpenSubtitles Uploader".)
+ *   - It refuses to write a manifest that would break auto-update. A missing
+ *     platform, an empty signature, or a macOS URL the updater cannot install
+ *     is an error and a non-zero exit, never a warning.
+ *
+ * Usage:
+ *   node scripts/build/generate-updater-manifest.js \
+ *     --version v2.0.1 --repo owner/name --sig-dir ./updater-sigs \
+ *     [--notes-file notes.txt] [--assets-file assets.txt] [--out latest.json]
+ *
+ * --assets-file is a list of the release's asset names, one per line. When
+ * given, every URL must point at one of them.
  */
 
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
-const https = require('https');
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// Read version from package.json
-const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-const version = packageJson.version;
+/**
+ * Which signature file feeds which updater platform keys. The updater asks
+ * for "<os>-<arch>"; the one universal macOS archive serves all three.
+ */
+export const PLATFORM_RULES = [
+  { label: 'Windows', suffix: 'setup.exe.sig', platforms: ['windows-x86_64'] },
+  {
+    label: 'macOS',
+    suffix: '.app.tar.gz.sig',
+    platforms: ['darwin-universal', 'darwin-x86_64', 'darwin-aarch64'],
+  },
+  { label: 'Linux', suffix: '.AppImage.sig', platforms: ['linux-x86_64'] },
+];
 
-console.log(`📦 Generating updater manifest for version ${version}`);
+/**
+ * The name GitHub gives an uploaded release asset: spaces become dots.
+ * "OpenSubtitles Uploader_2.0.1_x64-setup.exe" is served as
+ * "OpenSubtitles.Uploader_2.0.1_x64-setup.exe".
+ */
+export const releaseAssetName = fileName => fileName.replace(/ /g, '.');
 
-// Fetch release notes from GitHub
-async function fetchReleaseNotes(version) {
-  return new Promise((resolve, reject) => {
-    const url = `https://api.github.com/repos/opensubtitles-dev/opensubtitles-com-uploader/releases/tags/v${version}`;
-    
-    https.get(url, {
-      headers: {
-        'User-Agent': 'OpenSubtitles-Uploader-PRO-Build-Script'
-      }
-    }, (res) => {
-      let data = '';
-      
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-      
-      res.on('end', () => {
-        try {
-          if (res.statusCode === 200) {
-            const release = JSON.parse(data);
-            // Use the release body (markdown) as release notes
-            const notes = release.body || `OpenSubtitles Uploader PRO v${version} - New release`;
-            console.log(`✅ Fetched release notes for v${version}`);
-            resolve(notes);
-          } else {
-            console.warn(`⚠️ Could not fetch release notes (status: ${res.statusCode}), using fallback`);
-            resolve(`OpenSubtitles Uploader PRO v${version} - New release with improvements and bug fixes`);
-          }
-        } catch (error) {
-          console.warn(`⚠️ Error parsing release data:`, error.message);
-          resolve(`OpenSubtitles Uploader PRO v${version} - New release with improvements and bug fixes`);
-        }
-      });
-    }).on('error', (error) => {
-      console.warn(`⚠️ Error fetching release notes:`, error.message);
-      resolve(`OpenSubtitles Uploader PRO v${version} - New release with improvements and bug fixes`);
-    });
-  });
-}
+/**
+ * @param {object} input
+ * @param {string} input.version      release tag, e.g. "v2.0.1"
+ * @param {string} input.repo         "owner/name"
+ * @param {Array<{file: string, signature: string}>} input.signatures
+ *        one entry per .sig file the build produced
+ * @param {string} [input.notes]
+ * @param {string} [input.pubDate]    ISO timestamp
+ * @param {string[]|null} [input.releaseAssets] asset names on the release
+ * @returns {{manifest: object|null, errors: string[]}}
+ */
+export function buildManifest({
+  version,
+  repo,
+  signatures = [],
+  notes = '',
+  pubDate = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+  releaseAssets = null,
+}) {
+  const errors = [];
+  if (!version) errors.push('No version given');
+  if (!repo) errors.push('No repository given');
 
-// Calculate signature for files (if we have the private key)
-function calculateSignature(filePath) {
-  try {
-    if (fs.existsSync(filePath)) {
-      const fileContent = fs.readFileSync(filePath);
-      return crypto.createHash('sha256').update(fileContent).digest('hex');
-    }
-  } catch (error) {
-    console.warn(`⚠️ Could not calculate signature for ${filePath}:`, error.message);
-  }
-  return null;
-}
-
-// Find platform-specific files in target directory
-function findPlatformFiles() {
   const platforms = {};
-  const targetDir = 'src-tauri/target';
-  
-  if (fs.existsSync(targetDir)) {
-    // Look for Windows NSIS installer
-    const windowsPattern = /\.exe$/;
-    const windowsFiles = findFilesRecursive(targetDir, windowsPattern);
-    if (windowsFiles.length > 0) {
-      const exe = windowsFiles.find(f => f.includes('setup') || f.includes('installer'));
-      if (exe) {
-        platforms['windows-x86_64'] = {
-          signature: calculateSignature(exe),
-          url: `https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/v${version}/${path.basename(exe)}`
-        };
-      }
-    }
-    
-    // Look for macOS DMG
-    const macosPattern = /\.dmg$/;
-    const macosFiles = findFilesRecursive(targetDir, macosPattern);
-    if (macosFiles.length > 0) {
-      const dmg = macosFiles[0]; // Take first DMG found
-      platforms['darwin-universal'] = {
-        signature: calculateSignature(dmg),
-        url: `https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/v${version}/${path.basename(dmg)}`
-      };
-      // Also add separate entries for Intel and Apple Silicon
-      platforms['darwin-x86_64'] = platforms['darwin-universal'];
-      platforms['darwin-aarch64'] = platforms['darwin-universal'];
-    }
-    
-    // Look for Linux AppImage
-    const linuxPattern = /\.AppImage$/;
-    const linuxFiles = findFilesRecursive(targetDir, linuxPattern);
-    if (linuxFiles.length > 0) {
-      const appimage = linuxFiles[0];
-      platforms['linux-x86_64'] = {
-        signature: calculateSignature(appimage),
-        url: `https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/v${version}/${path.basename(appimage)}`
-      };
-    }
-  }
-  
-  return platforms;
-}
 
-function findFilesRecursive(dir, pattern) {
-  const results = [];
-  
-  function search(currentDir) {
-    try {
-      const files = fs.readdirSync(currentDir);
-      for (const file of files) {
-        const fullPath = path.join(currentDir, file);
-        const stat = fs.statSync(fullPath);
-        
-        if (stat.isDirectory()) {
-          search(fullPath);
-        } else if (pattern.test(file)) {
-          results.push(fullPath);
-        }
-      }
-    } catch (error) {
-      // Ignore permission errors
+  for (const rule of PLATFORM_RULES) {
+    const matches = signatures.filter(s => s.file.endsWith(rule.suffix));
+
+    if (matches.length === 0) {
+      errors.push(
+        `No ${rule.label} updater signature (*${rule.suffix}) was produced — ` +
+          `auto-update would be broken for ${rule.platforms.join(', ')}`
+      );
+      continue;
+    }
+    if (matches.length > 1) {
+      errors.push(
+        `${matches.length} ${rule.label} signatures found (${matches.map(m => m.file).join(', ')}); expected exactly one`
+      );
+      continue;
+    }
+
+    const { file, signature } = matches[0];
+    const trimmed = (signature || '').trim();
+    if (!trimmed) {
+      errors.push(
+        `Empty updater signature in ${file} — auto-update would be broken for ${rule.platforms.join(', ')}`
+      );
+      continue;
+    }
+
+    // The signed artifact is the signature's file name without ".sig".
+    const asset = releaseAssetName(file.slice(0, -'.sig'.length));
+
+    if (releaseAssets && !releaseAssets.includes(asset)) {
+      errors.push(
+        `${rule.label} updater artifact "${asset}" is not among the release assets — its URL would be a 404`
+      );
+      continue;
+    }
+
+    const url = `https://github.com/${repo}/releases/download/${version}/${asset}`;
+    for (const platform of rule.platforms) {
+      platforms[platform] = { signature: trimmed, url };
     }
   }
-  
-  search(dir);
-  return results;
+
+  // The updater can only install an .app.tar.gz on macOS. PLATFORM_RULES
+  // already guarantees it; this guards against someone loosening the rule.
+  for (const [platform, entry] of Object.entries(platforms)) {
+    if (platform.startsWith('darwin-') && !entry.url.endsWith('.app.tar.gz')) {
+      errors.push(
+        `macOS updater URL is not a .app.tar.gz (${entry.url}) — the updater cannot install it`
+      );
+    }
+  }
+
+  if (errors.length > 0) return { manifest: null, errors };
+
+  return {
+    manifest: { version, notes, pub_date: pubDate, platforms },
+    errors,
+  };
 }
 
-// Main async function to generate the updater manifest
-async function generateManifest() {
-  try {
-    // Fetch release notes from GitHub
-    const notes = await fetchReleaseNotes(version);
-    
-    // Generate the updater manifest
-    const platforms = findPlatformFiles();
-    const manifest = {
-      version: `v${version}`,
-      notes: notes,
-      pub_date: new Date().toISOString(),
-      platforms
-    };
+// ---------------------------------------------------------------------------
+// CLI
+// ---------------------------------------------------------------------------
 
-    // Write the manifest
-    const manifestPath = 'latest.json';
-    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+const parseArgs = argv => {
+  const args = {};
+  for (let i = 0; i < argv.length; i += 2) {
+    args[argv[i].replace(/^--/, '')] = argv[i + 1];
+  }
+  return args;
+};
 
-    console.log(`✅ Updater manifest written to ${manifestPath}`);
-    console.log(`📋 Manifest version: v${version}`);
-    console.log(`📝 Release notes preview: ${notes.substring(0, 100)}...`);
+const main = () => {
+  const args = parseArgs(process.argv.slice(2));
+  const sigDir = args['sig-dir'];
 
-    // Also log found files for debugging
-    Object.keys(platforms).forEach(platform => {
-      console.log(`📁 ${platform}: ${platforms[platform].url}`);
-    });
-
-    if (Object.keys(platforms).length === 0) {
-      console.error('❌ No platform files found! Make sure build has completed successfully.');
-      process.exit(1);
-    }
-  } catch (error) {
-    console.error('❌ Error generating updater manifest:', error);
+  if (!sigDir || !fs.existsSync(sigDir)) {
+    console.error(`::error::Signature directory not found: ${sigDir}`);
     process.exit(1);
   }
-}
 
-// Run the main function
-generateManifest();
+  const signatures = fs
+    .readdirSync(sigDir, { recursive: true })
+    .map(String)
+    .filter(name => name.endsWith('.sig'))
+    .map(name => ({
+      file: path.basename(name),
+      signature: fs.readFileSync(path.join(sigDir, name), 'utf8'),
+    }));
+
+  const releaseAssets = args['assets-file']
+    ? fs
+        .readFileSync(args['assets-file'], 'utf8')
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+    : null;
+
+  const { manifest, errors } = buildManifest({
+    version: args.version,
+    repo: args.repo,
+    signatures,
+    notes: args['notes-file'] ? fs.readFileSync(args['notes-file'], 'utf8').trim() : '',
+    releaseAssets,
+  });
+
+  if (errors.length > 0) {
+    for (const error of errors) console.error(`::error::${error}`);
+    console.error(`Refusing to write an updater manifest with ${errors.length} problem(s).`);
+    process.exit(1);
+  }
+
+  const out = args.out || 'latest.json';
+  fs.writeFileSync(out, JSON.stringify(manifest, null, 2) + '\n');
+  console.log(`Wrote ${out}:`);
+  for (const [platform, entry] of Object.entries(manifest.platforms)) {
+    console.log(`  ${platform.padEnd(17)} signature ${entry.signature.length} chars  ${entry.url}`);
+  }
+};
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}

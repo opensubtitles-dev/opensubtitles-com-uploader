@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAppUpdate } from '../hooks/useAppUpdate.js';
 import { useTheme } from '../contexts/ThemeContext.jsx';
+import { installerFileName, installerUrl } from '../utils/releaseAssets.js';
 
 /**
  * Update settings component for configuration panel
@@ -42,20 +43,22 @@ const UpdateSettings = () => {
 
     // Determine platform
     let platformType = 'unknown';
-    let fileName = '';
+    let platformKey = null;
 
     if (platform.includes('mac') || userAgent.includes('mac')) {
       platformType = 'macOS';
-      fileName = `OpenSubtitles.Uploader.PRO_${version}_universal.dmg`;
+      platformKey = 'macos';
     } else if (platform.includes('win') || userAgent.includes('windows')) {
       platformType = 'Windows';
-      fileName = `OpenSubtitles.Uploader.PRO_${version}_x64-setup.exe`;
+      platformKey = 'windows';
     } else if (platform.includes('linux') || userAgent.includes('linux')) {
       platformType = 'Linux';
-      fileName = `OpenSubtitles.Uploader.PRO_${version}_amd64.AppImage`;
+      platformKey = 'linux';
     }
 
-    const directUrl = `https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases/download/v${version}/${fileName}`;
+    // Names come from utils/releaseAssets.js — see the note there.
+    const fileName = installerFileName(version, platformKey) || '';
+    const directUrl = installerUrl(version, platformKey);
 
     return {
       url: directUrl,

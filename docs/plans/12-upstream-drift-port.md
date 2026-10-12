@@ -221,6 +221,58 @@ what a v2.0.0 user actually experiences is unknown. Treat as "very likely
 broken"; fix before the next release, and port upstream's guard that fails the
 build when a signature is empty.
 
+### Fixed in the pipeline (2026-10-12) — not yet proven by a CI run
+
+Fixing it turned up two more defects than the four listed above:
+
+- **Every URL in the v2.0.0 manifest was a 404.** It named
+  `OpenSubtitles.Uploader.PRO_…` assets; this fork's `productName` is
+  "OpenSubtitles Uploader", so the real assets are `OpenSubtitles.Uploader_…`.
+- **The app's own fallback links had the same wrong name**, written out by hand
+  in `UpdateNotification.jsx`, `UpdateSettings.jsx` and `updateService.js`.
+
+What changed:
+
+- `tauri.conf.json` — `createUpdaterArtifacts: true`.
+- Workflow — the key is passed as `TAURI_SIGNING_PRIVATE_KEY` /
+  `…_PASSWORD` (the repository secrets keep their old names and are mapped);
+  macOS builds `--bundles app,dmg`; each platform must produce its updater
+  artifact **and** a non-empty `.sig` or the job fails; both are uploaded to
+  the release.
+- `scripts/build/generate-updater-manifest.js` replaces the inline heredoc (and
+  a dead script of the same name that "signed" with a SHA-256). It derives
+  every URL from the signature files that were actually built, checks them
+  against the release's asset list, and exits non-zero rather than write a
+  manifest with a missing platform, an empty signature or a non-`.app.tar.gz`
+  macOS URL.
+- `src/utils/releaseAssets.js` is the one place installer names are built; a
+  test ties its prefix to `productName` in `tauri.conf.json`.
+- **A manual run is now a dry run.** `workflow_dispatch` takes
+  `create_release` (default `false`): it builds, signs and validates the
+  manifest and keeps it as a workflow artifact, without touching any release.
+  Tag pushes, and `--field create_release=true`, publish. Before this, any
+  manual run overwrote the assets of the release matching `package.json`.
+
+Deliberately different from upstream: upstream still hardcodes asset names in
+its manifest step and only validates the result. Here the names are derived,
+so the mismatch that broke v2.0.0 cannot be written at all.
+
+> [!WARNING] Unverified until a dry run passes
+> None of this has run in CI. Unknowns a dry run will settle: whether the
+> stored private key matches the committed `pubkey`, whether its password
+> secret is right, and the exact file names Tauri 2.6 emits for each platform.
+>
+> **v2.0.0 installs cannot be repaired from here.** They carry the old links
+> and will read the next manifest with the old code. Whether the native
+> updater can take them to v2.0.1 once a valid, signed manifest exists has not
+> been tested; assume v2.0.0 users may need one manual download.
+>
+> **`gh` on the maintainer's machine defaults to the upstream repository**
+> (`gh repo view` answers `opensubtitles/OpenSubtitles-Uploader-PRO`). The
+> release commands in the root `CLAUDE.md` carry no `-R`, so they would target
+> upstream. Run `gh repo set-default opensubtitles-dev/opensubtitles-com-uploader`
+> or pass `-R`.
+
 ## Link remover — ported
 
 Seven files copied **verbatim** from upstream v1.9.0, so a future diff against
