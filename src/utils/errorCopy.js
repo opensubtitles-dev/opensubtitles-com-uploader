@@ -23,6 +23,9 @@ export const ERROR_COPY = Object.freeze({
   // The show was found but not that season/episode. body: null on purpose — the
   // server message names the exact season and episode it could not place.
   episode_not_found:       { icon: '📺', title: 'Episode not found', body: null },
+  episode_required:        { icon: '📺', title: 'Pick an episode', body: 'Subtitles are attached to an episode, not to a whole series. Choose the season and episode.' },
+  ambiguous_tmdb_id:       { icon: '🎬', title: 'Movie or series?', body: 'That TMDb id is both a movie and a TV series. Paste the full themoviedb.org link, or use the IMDb id.' },
+  lookup_unavailable:      { icon: '🔧', title: 'Lookup unavailable', body: 'TMDb is not answering right now. Try again in a moment.' },
   invalid_language:        { icon: '🌐', title: 'Unknown language', body: null },
   language_required:       { icon: '🌐', title: 'Pick a language', body: 'Choose the subtitle language before uploading.' },
   invalid_content:         { icon: '❌', title: 'Corrupt subtitle', body: 'The subtitle file could not be read.' },

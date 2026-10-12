@@ -33,6 +33,15 @@ function parseTmdbId(input) {
   return null;
 }
 
+// The media type a pasted themoviedb.org URL carries ('movie' | 'tvshow'),
+// or null for a bare number. The server needs it to tell movie 1399 from
+// tv 1399; a bare number that is both comes back as ambiguous_tmdb_id.
+function parseTmdbType(input) {
+  const m = String(input ?? '').match(/themoviedb\.org\/(movie|tv)\//i);
+  if (!m) return null;
+  return m[1].toLowerCase() === 'movie' ? 'movie' : 'tvshow';
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -128,7 +137,8 @@ export function StubFeatureDialog({
 
     setSubmitting(true);
     try {
-      const r = await uploadApi.resolveFromId({ imdbId, tmdbId });
+      const tmdbType = tmdbId ? parseTmdbType(idInput) : null;
+      const r = await uploadApi.resolveFromId({ imdbId, tmdbId, tmdbType });
       if (!r?.found) {
         setError('No match for that id.');
         return;
@@ -666,6 +676,12 @@ function humaniseError(err) {
   }
   if (err?.code === 'missing_id') {
     return 'Provide an IMDb id or a TMDb id.';
+  }
+  if (err?.code === 'ambiguous_tmdb_id') {
+    return 'That TMDb number is both a movie and a TV series. Paste the full themoviedb.org link, or use the IMDb id.';
+  }
+  if (err?.code === 'lookup_unavailable') {
+    return "TMDb isn't answering right now. Try again in a moment — don't create a manual entry, the title may well exist.";
   }
   return err?.message || 'Lookup failed. Try again or use manual entry.';
 }

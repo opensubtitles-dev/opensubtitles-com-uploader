@@ -252,11 +252,15 @@ export function createUploadApi({ client = defaultClient } = {}) {
      *     RestError with code 'invalid_imdb_id' | 'invalid_tmdb_id'
      *       | 'missing_id'
      */
-    async resolveFromId({ imdbId, tmdbId } = {}, opts = {}) {
+    async resolveFromId({ imdbId, tmdbId, tmdbType } = {}, opts = {}) {
       const body = {};
       // Treat 0, '', null, undefined as absent — neither is a valid id.
       if (imdbId != null && imdbId !== '' && imdbId !== 0) body.imdb_id = imdbId;
       if (tmdbId != null && tmdbId !== '' && tmdbId !== 0) body.tmdb_id = tmdbId;
+      // TMDb ids are unique only within a media type (movie 1399 ≠ tv 1399).
+      // Without the type the server refuses a colliding id (422
+      // ambiguous_tmdb_id) rather than guess. 'movie' | 'tvshow'.
+      if (body.tmdb_id && tmdbType) body.tmdb_type = tmdbType;
       return client.post('/subtitles/upload/features/from_id', body, {
         signal: opts.signal,
         authenticated: opts.anonymous === true ? false : 'auto',

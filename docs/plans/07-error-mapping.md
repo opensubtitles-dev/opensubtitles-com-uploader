@@ -51,6 +51,9 @@ HTTP status matches the error semantics (401, 403, 404, 409, 422, 429). `error_c
 | (new) no title identified at all (no feature_id / idmovieimdb / tmdbid) | 422 | `feature_required` | "Pick a movie or episode" |
 | (new 2026-10-08) show found, that season/episode not found | 422 | `episode_not_found` | "Episode not found" + server message (names the S/E). Fix: check numbering, or upload against the episode's own IMDb id. Before 2026-10-08 the server silently attached the subtitle to the show instead. |
 | (new) no language sent | 400 | `language_required` | "Pick a language" |
+| (new 2026-10-12) series id with no season+episode | 422 | `episode_required` | "Pick an episode". A subtitle never attaches to a whole series. |
+| (new 2026-10-12, from_id) TMDb id is both a movie and a series, no type | 422 | `ambiguous_tmdb_id` | Ask for the full themoviedb.org link or the IMDb id. The dialog sends `tmdb_type` from a pasted URL. |
+| (new 2026-10-12, from_id) TMDb not answering | 503 | `lookup_unavailable` | "Try again". Do NOT steer to manual entry; the title may exist. |
 
 ### 2.3 `/subtitles/upload` (commit — replaces `UploadSubtitles`)
 

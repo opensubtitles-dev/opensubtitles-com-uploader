@@ -335,6 +335,20 @@ describe('uploadApi.resolveFromId', () => {
     assert.deepEqual(client.calls[0].body, { tmdb_id: 84958 });
   });
 
+  test('sends tmdb_type with a tmdb_id when the type is known', async () => {
+    const client = makeFakeClient(async () => MOVIE_RESPONSE);
+    const api = createUploadApi({ client });
+    await api.resolveFromId({ tmdbId: 1399, tmdbType: 'tvshow' });
+    assert.deepEqual(client.calls[0].body, { tmdb_id: 1399, tmdb_type: 'tvshow' });
+  });
+
+  test('omits tmdb_type when there is no tmdb_id', async () => {
+    const client = makeFakeClient(async () => MOVIE_RESPONSE);
+    const api = createUploadApi({ client });
+    await api.resolveFromId({ imdbId: 'tt0133093', tmdbType: 'movie' });
+    assert.equal(client.calls[0].body.tmdb_type, undefined);
+  });
+
   test('POSTs with both ids when both supplied', async () => {
     const client = makeFakeClient(async () => MOVIE_RESPONSE);
     const api = createUploadApi({ client });

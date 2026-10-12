@@ -46,6 +46,7 @@ describe('errorCopy', () => {
       'unauthorized', 'banned', 'quota_exceeded', 'duplicate',
       'spam_filename', 'spam_content', 'anon_duplicate_language',
       'feature_not_found', 'feature_required', 'episode_not_found',
+      'episode_required', 'ambiguous_tmdb_id', 'lookup_unavailable',
       'invalid_language', 'language_required', 'invalid_content',
       'invalid_type', 'subhash_mismatch', 'validation_error',
       'missing_title', 'not_found', 'unknown',
