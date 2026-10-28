@@ -2,6 +2,8 @@ import React, { useReducer } from 'react';
 import { Server } from 'lucide-react';
 import {
   SWITCH_ENABLED,
+  DEV_ONLY,
+  ENVIRONMENTS,
   listSelectableEnvironments,
   getActiveEnvironmentId,
   setActiveEnvironment,
@@ -9,7 +11,9 @@ import {
 
 /**
  * Backend environment switch. Renders nothing unless the build was made with
- * VITE_ENV_SWITCH=true, so public builds carry no dead chrome.
+ * VITE_ENV_SWITCH=true, so public builds carry no dead chrome. A dev-only
+ * build (VITE_USE_DEV_ONLY=true) shows a fixed DEV badge instead: there is
+ * nothing to choose, but testers should see which backend they are on.
  *
  * Changing the environment persists the choice and reloads the window —
  * every module then re-resolves the backend from scratch. If the persist
@@ -24,6 +28,15 @@ import {
  */
 export default function EnvironmentSwitch() {
   const [, retrigger] = useReducer(tick => tick + 1, 0);
+
+  if (DEV_ONLY) {
+    return (
+      <div className="flex items-center gap-2" title={`Uploads go to ${ENVIRONMENTS.dev.baseUrl}`}>
+        <Server className="size-4 text-warning" aria-hidden="true" />
+        <span className="badge badge-warning badge-sm">DEV</span>
+      </div>
+    );
+  }
 
   if (!SWITCH_ENABLED) return null;
 

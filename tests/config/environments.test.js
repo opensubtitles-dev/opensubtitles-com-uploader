@@ -261,3 +261,49 @@ describe('buildEnvironments — production base URL override', () => {
     assert.equal(envs.dev.label, 'Dev (ngrok)');
   });
 });
+
+describe('dev-only build (VITE_USE_DEV_ONLY=true)', () => {
+  test('always resolves to dev, whatever the switch or storage says', () => {
+    const storedProd = new MemoryStorage({ [BACKEND_PREF_KEY]: 'prod' });
+    assert.equal(resolveEnvironmentId(storedProd, true, DEV_CONFIGURED, true), 'dev');
+    assert.equal(resolveEnvironmentId(storedProd, false, DEV_CONFIGURED, true), 'dev');
+    assert.equal(resolveEnvironmentId(null, false, DEV_CONFIGURED, true), 'dev');
+  });
+
+  test('stays on dev even with no dev URL, rather than falling back to prod', () => {
+    assert.equal(resolveEnvironmentId(new MemoryStorage(), true, ENVIRONMENTS, true), 'dev');
+  });
+
+  test('production has no URL and no key, even with a prod override set', () => {
+    const envs = buildEnvironments({
+      prodBaseUrl: 'https://direct.example/api/v1',
+      prodKey: 'prod-key',
+      devBaseUrl: 'https://rb-dev.ngrok.dev/api/v1',
+      devKey: 'dev-key',
+      switchEnabled: true,
+      devOnly: true,
+    });
+    assert.equal(envs.prod.baseUrl, '');
+    assert.equal(envs.prod.apiKey, '');
+    assert.equal(envs.dev.baseUrl, 'https://rb-dev.ngrok.dev/api/v1');
+    assert.equal(envs.dev.apiKey, 'dev-key');
+  });
+
+  test('offers nothing to select', () => {
+    assert.deepEqual(buildSelectableList(true, DEV_CONFIGURED, true), []);
+  });
+
+  test('refuses to switch to prod', () => {
+    let reloaded = false;
+    const storage = new MemoryStorage();
+    const switched = setActiveEnvironment('prod', {
+      storage,
+      switchEnabled: true,
+      devOnly: true,
+      reload: () => (reloaded = true),
+    });
+    assert.equal(switched, false);
+    assert.equal(reloaded, false);
+    assert.equal(storage.getItem(BACKEND_PREF_KEY), null);
+  });
+});

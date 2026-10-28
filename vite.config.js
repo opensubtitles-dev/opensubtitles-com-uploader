@@ -42,6 +42,26 @@ const embedApiKeysPlugin = () => {
 // Both builds therefore ship it. That is a deliberate trade: the web page
 // carries 32 MB so that nothing is fetched from unpkg.com at runtime.
 
+// VITE_USE_DEV_ONLY=true: a build for testers of the shared dev server that
+// can only reach the dev backend (see DEV_ONLY in src/config/environments.js).
+// It carries no production key, and it must know the dev URL: without one
+// every request would fail, so refuse to build rather than ship that.
+const USE_DEV_ONLY = (process.env.VITE_USE_DEV_ONLY || fileEnv.VITE_USE_DEV_ONLY) === 'true';
+if (
+  USE_DEV_ONLY &&
+  !(process.env.VITE_OPENSUBTITLES_BASE_URL || fileEnv.VITE_OPENSUBTITLES_BASE_URL)
+) {
+  throw new Error('VITE_USE_DEV_ONLY=true needs VITE_OPENSUBTITLES_BASE_URL (the dev API URL)');
+}
+// Vite inlines every VITE_* variable into the bundle (environments.js reads
+// import.meta.env by name), so leaving the prod key in .env would ship it as
+// text. Variables already in process.env win over .env files, so blanking
+// them here keeps it out; the embed-api-keys script reads process.env too.
+if (USE_DEV_ONLY) {
+  process.env.VITE_OPENSUBTITLES_API_KEY_PROD = '';
+  process.env.OPENSUBTITLES_API_KEY_PROD = '';
+}
+
 export default defineConfig({
   plugins: [react(), embedApiKeysPlugin()],
   publicDir: 'public',
@@ -49,7 +69,11 @@ export default defineConfig({
   // Define global constants for embedded API keys and polyfills
   define: {
     __EMBEDDED_OPENSUBTITLES_API_KEY_PROD__: JSON.stringify(
-      process.env.OPENSUBTITLES_API_KEY_PROD || process.env.VITE_OPENSUBTITLES_API_KEY_PROD || ''
+      USE_DEV_ONLY
+        ? ''
+        : process.env.OPENSUBTITLES_API_KEY_PROD ||
+            process.env.VITE_OPENSUBTITLES_API_KEY_PROD ||
+            ''
     ),
     __EMBEDDED_OPENSUBTITLES_API_KEY_DEV__: JSON.stringify(
       process.env.OPENSUBTITLES_API_KEY_DEV ||
@@ -58,6 +82,7 @@ export default defineConfig({
         ''
     ),
     __ENV_SWITCH_ENABLED__: JSON.stringify(process.env.VITE_ENV_SWITCH || ''),
+    __USE_DEV_ONLY__: JSON.stringify(USE_DEV_ONLY ? 'true' : ''),
     global: 'globalThis',
   },
 

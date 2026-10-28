@@ -53,6 +53,14 @@ export const SWITCH_ENABLED =
   (typeof __ENV_SWITCH_ENABLED__ !== 'undefined' && __ENV_SWITCH_ENABLED__ === 'true') ||
   readEnv('VITE_ENV_SWITCH') === 'true';
 
+// A dev-only build (VITE_USE_DEV_ONLY=true) is for testers of the shared dev
+// server: it talks to the dev backend and nothing else. No switch, no stored
+// preference and no prod key can bring production back, so a tester cannot
+// upload to the live site by accident. It wins over VITE_ENV_SWITCH.
+export const DEV_ONLY =
+  (typeof __USE_DEV_ONLY__ !== 'undefined' && __USE_DEV_ONLY__ === 'true') ||
+  readEnv('VITE_USE_DEV_ONLY') === 'true';
+
 // Production base URL override. Same globalThis-property shape as the dev
 // override above, and read from VITE_OPENSUBTITLES_BASE_URL_PROD otherwise.
 // Exists so a tester build can reach the API server directly while its public
@@ -81,14 +89,17 @@ export function buildEnvironments({
   devBaseUrl,
   devKey,
   switchEnabled,
+  devOnly,
 } = {}) {
-  const prodOverridden = !!switchEnabled && !!prodBaseUrl;
+  const prodOverridden = !devOnly && !!switchEnabled && !!prodBaseUrl;
   return Object.freeze({
+    // In a dev-only build production has no URL and no key at all, so even
+    // code that reads ENVIRONMENTS.prod directly has nothing to send to.
     prod: Object.freeze({
       id: 'prod',
       label: prodOverridden ? 'Production (direct)' : 'Production',
-      baseUrl: prodOverridden ? normalizeBaseUrl(prodBaseUrl) : DEFAULT_BASE_URL,
-      apiKey: prodKey,
+      baseUrl: devOnly ? '' : prodOverridden ? normalizeBaseUrl(prodBaseUrl) : DEFAULT_BASE_URL,
+      apiKey: devOnly ? '' : prodKey,
     }),
     dev: Object.freeze({
       id: 'dev',
@@ -105,6 +116,7 @@ export const ENVIRONMENTS = buildEnvironments({
   devBaseUrl: DEV_BASE_URL_RAW,
   devKey: DEV_KEY,
   switchEnabled: SWITCH_ENABLED,
+  devOnly: DEV_ONLY,
 });
 
 const VALID_IDS = Object.freeze(['prod', 'dev']);
@@ -125,10 +137,21 @@ const VALID_IDS = Object.freeze(['prod', 'dev']);
  *
  * @param {Storage|null} storage
  * @param {boolean} switchEnabled
+ * A dev-only build always resolves to 'dev', whatever the switch or storage
+ * says, even when no dev base URL is configured: requests then fail, which is
+ * the safe way to fail. vite.config.js refuses to build that case anyway.
+ *
  * @param {object} [environments] environment registry, injectable for tests
+ * @param {boolean} [devOnly]
  * @returns {'prod'|'dev'}
  */
-export function resolveEnvironmentId(storage, switchEnabled, environments = ENVIRONMENTS) {
+export function resolveEnvironmentId(
+  storage,
+  switchEnabled,
+  environments = ENVIRONMENTS,
+  devOnly = DEV_ONLY
+) {
+  if (devOnly) return 'dev';
   if (!switchEnabled) return 'prod';
   const devUsable = !!environments?.dev?.baseUrl;
   const fallback = devUsable ? 'dev' : 'prod';
@@ -146,10 +169,10 @@ export function resolveEnvironmentId(storage, switchEnabled, environments = ENVI
 
 /**
  * Pure list builder — exported for tests.
- * @returns {Array<object>} prod first, then dev when it is configured
+ * @returns {Array<object>} prod first, then dev when it is configured; empty in a dev-only build
  */
-export function buildSelectableList(switchEnabled, environments) {
-  if (!switchEnabled) return [];
+export function buildSelectableList(switchEnabled, environments, devOnly = DEV_ONLY) {
+  if (devOnly || !switchEnabled) return [];
   return VALID_IDS.map(id => environments[id]).filter(env => env && env.baseUrl);
 }
 
@@ -172,12 +195,13 @@ export function listSelectableEnvironments() {
  * Persist the choice and reload so every module re-resolves the backend.
  *
  * @param {'prod'|'dev'} id
- * @param {{storage?: Storage, reload?: Function, switchEnabled?: boolean}} deps injectable for tests
+ * @param {{storage?: Storage, reload?: Function, switchEnabled?: boolean, devOnly?: boolean}} deps injectable for tests
  * @returns {boolean} true when a reload was triggered
  */
 export function setActiveEnvironment(id, deps = {}) {
   const storage = deps.storage ?? defaultStorage();
   const switchEnabled = deps.switchEnabled ?? SWITCH_ENABLED;
+  if (deps.devOnly ?? DEV_ONLY) return false;
   const reload =
     deps.reload ??
     (() => {
