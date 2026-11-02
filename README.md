@@ -1,6 +1,6 @@
 # OpenSubtitles Uploader
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases)
+[![Version](https://img.shields.io/badge/version-2.0.1-blue.svg)](https://github.com/opensubtitles-dev/opensubtitles-com-uploader/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 A subtitle uploader for **opensubtitles.com**, available as a desktop app and in the

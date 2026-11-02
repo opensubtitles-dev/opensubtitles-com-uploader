@@ -1,7 +1,7 @@
 import { getActiveEnvironment, getActiveEnvironmentId } from '../config/environments.js';
 
 // Application version - updated manually to match package.json
-export const APP_VERSION = '2.0.0';
+export const APP_VERSION = '2.0.1';
 
 // API key and base URL both come from the active environment — see
 // src/config/environments.js. Resolved once at module load; switching
