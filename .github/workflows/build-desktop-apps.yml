@@ -126,7 +126,12 @@ jobs:
         if: matrix.target == 'universal-apple-darwin'
         env:
           VITE_OPENSUBTITLES_API_KEY: ${{ secrets.VITE_OPENSUBTITLES_API_KEY }}
-          VITE_OPENSUBTITLES_API_KEY_PROD: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_PROD || secrets.VITE_OPENSUBTITLES_API_KEY }}
+          # Repo variable VITE_USE_DEV_ONLY=true makes a tester build that can
+          # only reach VITE_OPENSUBTITLES_BASE_URL (see vite.config.js). It
+          # applies to tag pushes too, and the prod key is not even passed.
+          VITE_USE_DEV_ONLY: ${{ vars.VITE_USE_DEV_ONLY }}
+          VITE_OPENSUBTITLES_BASE_URL: ${{ vars.VITE_OPENSUBTITLES_BASE_URL }}
+          VITE_OPENSUBTITLES_API_KEY_PROD: ${{ vars.VITE_USE_DEV_ONLY != 'true' && (secrets.VITE_OPENSUBTITLES_API_KEY_PROD || secrets.VITE_OPENSUBTITLES_API_KEY) || '' }}
           VITE_OPENSUBTITLES_API_KEY_DEV: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_DEV }}
           NODE_ENV: production
           # Tauri v2 reads TAURI_SIGNING_*. The v1 names used here before were
@@ -170,7 +175,12 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         env:
           VITE_OPENSUBTITLES_API_KEY: ${{ secrets.VITE_OPENSUBTITLES_API_KEY }}
-          VITE_OPENSUBTITLES_API_KEY_PROD: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_PROD || secrets.VITE_OPENSUBTITLES_API_KEY }}
+          # Repo variable VITE_USE_DEV_ONLY=true makes a tester build that can
+          # only reach VITE_OPENSUBTITLES_BASE_URL (see vite.config.js). It
+          # applies to tag pushes too, and the prod key is not even passed.
+          VITE_USE_DEV_ONLY: ${{ vars.VITE_USE_DEV_ONLY }}
+          VITE_OPENSUBTITLES_BASE_URL: ${{ vars.VITE_OPENSUBTITLES_BASE_URL }}
+          VITE_OPENSUBTITLES_API_KEY_PROD: ${{ vars.VITE_USE_DEV_ONLY != 'true' && (secrets.VITE_OPENSUBTITLES_API_KEY_PROD || secrets.VITE_OPENSUBTITLES_API_KEY) || '' }}
           VITE_OPENSUBTITLES_API_KEY_DEV: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_DEV }}
           NODE_ENV: production
           # Tauri v2 reads TAURI_SIGNING_*. The v1 names used here before were
@@ -205,7 +215,12 @@ jobs:
         shell: bash
         env:
           VITE_OPENSUBTITLES_API_KEY: ${{ secrets.VITE_OPENSUBTITLES_API_KEY }}
-          VITE_OPENSUBTITLES_API_KEY_PROD: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_PROD || secrets.VITE_OPENSUBTITLES_API_KEY }}
+          # Repo variable VITE_USE_DEV_ONLY=true makes a tester build that can
+          # only reach VITE_OPENSUBTITLES_BASE_URL (see vite.config.js). It
+          # applies to tag pushes too, and the prod key is not even passed.
+          VITE_USE_DEV_ONLY: ${{ vars.VITE_USE_DEV_ONLY }}
+          VITE_OPENSUBTITLES_BASE_URL: ${{ vars.VITE_OPENSUBTITLES_BASE_URL }}
+          VITE_OPENSUBTITLES_API_KEY_PROD: ${{ vars.VITE_USE_DEV_ONLY != 'true' && (secrets.VITE_OPENSUBTITLES_API_KEY_PROD || secrets.VITE_OPENSUBTITLES_API_KEY) || '' }}
           VITE_OPENSUBTITLES_API_KEY_DEV: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_DEV }}
           NODE_ENV: production
           # Tauri v2 reads TAURI_SIGNING_*. The v1 names used here before were
@@ -267,6 +282,20 @@ jobs:
           path: updater-out/*.sig
           if-no-files-found: error
           retention-days: 30
+
+      - name: Verify the dev-only build cannot reach production
+        if: vars.VITE_USE_DEV_ONLY == 'true'
+        shell: bash
+        env:
+          PROD_KEY: ${{ secrets.VITE_OPENSUBTITLES_API_KEY_PROD }}
+          DEV_URL: ${{ vars.VITE_OPENSUBTITLES_BASE_URL }}
+        run: |
+          test -d dist || { echo "❌ dist/ missing"; exit 1; }
+          if [ -n "$PROD_KEY" ] && grep -rqF "$PROD_KEY" dist src/utils/embeddedConstants.js; then
+            echo "❌ The production API key is in a dev-only build"; exit 1
+          fi
+          grep -rqF "$DEV_URL" dist || { echo "❌ The dev base URL is not in the bundle"; exit 1; }
+          echo "✅ Dev-only build: no production key, talks to $DEV_URL"
 
       - name: Get version for release
         id: version
