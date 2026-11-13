@@ -2454,101 +2454,117 @@ function SubtitleUploaderInner() {
       )}
 
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="card bg-base-100 shadow-sm mb-6">
-          <div className="card-body p-5 flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-4 min-w-0">
-              <a
-                href="https://www.opensubtitles.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block hover:opacity-80 transition-opacity shrink-0"
-              >
-                <img
-                  src={isDark ? logoDark : logoWhite}
-                  alt="OpenSubtitles"
-                  className="h-12 w-auto"
-                  onError={e => {
-                    e.target.style.display = 'none';
-                    e.target.nextElementSibling.style.display = 'block';
-                  }}
-                />
-                <div className="text-3xl hidden" style={{ display: 'none' }}>
-                  🎬
+        {/* Header. The web build is shown inside a page of the website, which
+            already has the logo, the account menu and the theme switch: it
+            keeps only the Config button. */}
+        {WEB_EMBED ? (
+          <div className="flex justify-end mb-3">
+            <button
+              type="button"
+              onClick={handleConfigToggle}
+              className="btn btn-ghost btn-sm gap-2"
+              title="Open configuration"
+            >
+              <Settings className="size-4" />
+              <span>Config</span>
+            </button>
+          </div>
+        ) : (
+          <div className="card bg-base-100 shadow-sm mb-6">
+            <div className="card-body p-5 flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4 min-w-0">
+                <a
+                  href="https://www.opensubtitles.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block hover:opacity-80 transition-opacity shrink-0"
+                >
+                  <img
+                    src={isDark ? logoDark : logoWhite}
+                    alt="OpenSubtitles"
+                    className="h-12 w-auto"
+                    onError={e => {
+                      e.target.style.display = 'none';
+                      e.target.nextElementSibling.style.display = 'block';
+                    }}
+                  />
+                  <div className="text-3xl hidden" style={{ display: 'none' }}>
+                    🎬
+                  </div>
+                </a>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h1 className="text-2xl font-semibold text-base-content truncate">
+                      OpenSubtitles Uploader
+                    </h1>
+                    <button
+                      type="button"
+                      className="badge badge-success badge-sm cursor-pointer"
+                      onClick={() => setShowChangelogOverlay(true)}
+                      title="Click to view changelog"
+                    >
+                      v{APP_VERSION}
+                    </button>
+                  </div>
+                  <p className="text-sm text-base-content/60">
+                    Subtitle uploader for{' '}
+                    <a
+                      href="https://www.opensubtitles.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="link link-hover link-primary"
+                    >
+                      OpenSubtitles
+                    </a>
+                  </p>
                 </div>
-              </a>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <h1 className="text-2xl font-semibold text-base-content truncate">
-                    OpenSubtitles Uploader
-                  </h1>
+              </div>
+
+              {/* User Info and Action Buttons - Right Side */}
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <UserProfile />
+                <div className="flex items-center gap-1">
+                  <EnvironmentSwitch />
+                  <a
+                    href="#/history"
+                    className="btn btn-ghost btn-sm gap-2"
+                    title="View upload history"
+                  >
+                    <History className="size-4" />
+                    <span className="hidden sm:inline">History</span>
+                  </a>
                   <button
                     type="button"
-                    className="badge badge-success badge-sm cursor-pointer"
-                    onClick={() => setShowChangelogOverlay(true)}
-                    title="Click to view changelog"
+                    onClick={handleConfigToggle}
+                    className="btn btn-ghost btn-sm gap-2"
+                    title="Open configuration"
                   >
-                    v{APP_VERSION}
+                    <Settings className="size-4" />
+                    <span className="hidden sm:inline">Config</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleHelpToggle}
+                    className="btn btn-ghost btn-sm gap-2"
+                    title="Help & Features"
+                  >
+                    <HelpCircle className="size-4" />
+                    <span className="hidden sm:inline">Help</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleTheme}
+                    className="btn btn-ghost btn-sm gap-2"
+                    title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+                  >
+                    {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                    <span className="hidden sm:inline">{isDark ? 'Light' : 'Dark'}</span>
                   </button>
                 </div>
-                <p className="text-sm text-base-content/60">
-                  Subtitle uploader for{' '}
-                  <a
-                    href="https://www.opensubtitles.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="link link-hover link-primary"
-                  >
-                    OpenSubtitles
-                  </a>
-                </p>
-              </div>
-            </div>
-
-            {/* User Info and Action Buttons - Right Side */}
-            <div className="flex flex-col items-end gap-2 shrink-0">
-              <UserProfile />
-              <div className="flex items-center gap-1">
-                <EnvironmentSwitch />
-                <a
-                  href="#/history"
-                  className="btn btn-ghost btn-sm gap-2"
-                  title="View upload history"
-                >
-                  <History className="size-4" />
-                  <span className="hidden sm:inline">History</span>
-                </a>
-                <button
-                  type="button"
-                  onClick={handleConfigToggle}
-                  className="btn btn-ghost btn-sm gap-2"
-                  title="Open configuration"
-                >
-                  <Settings className="size-4" />
-                  <span className="hidden sm:inline">Config</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleHelpToggle}
-                  className="btn btn-ghost btn-sm gap-2"
-                  title="Help & Features"
-                >
-                  <HelpCircle className="size-4" />
-                  <span className="hidden sm:inline">Help</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={toggleTheme}
-                  className="btn btn-ghost btn-sm gap-2"
-                  title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
-                >
-                  {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
-                  <span className="hidden sm:inline">{isDark ? 'Light' : 'Dark'}</span>
-                </button>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Drop Zone */}
         <DropZone
@@ -2934,53 +2950,55 @@ function SubtitleUploaderInner() {
           </Suspense>
         )}
 
-        {/* Footer */}
-        <div
-          className="mt-8 pt-6 border-t text-center text-sm"
-          style={{ borderTopColor: colors.border, color: colors.textSecondary }}
-        >
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex items-center gap-4">
-              {isStandalone && (
-                <button
-                  onClick={() => checkForUpdates(true)}
-                  disabled={isChecking}
-                  className="hover:underline transition-all flex items-center gap-1 bg-transparent border-0 cursor-pointer p-0"
-                  style={styles.link}
-                  {...createHoverHandlers(colors, styles.link, styles.linkHover)}
-                  title="Check for new version"
-                >
-                  {isChecking ? (
-                    <>
-                      <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      Checking...
-                    </>
-                  ) : (
-                    <>
-                      <span>🔔{updateAvailable && '✨'}</span>
-                      Check for Updates
-                    </>
-                  )}
-                </button>
-              )}
+        {/* Footer: desktop only (the website has its own) */}
+        {!WEB_EMBED && (
+          <div
+            className="mt-8 pt-6 border-t text-center text-sm"
+            style={{ borderTopColor: colors.border, color: colors.textSecondary }}
+          >
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex items-center gap-4">
+                {isStandalone && (
+                  <button
+                    onClick={() => checkForUpdates(true)}
+                    disabled={isChecking}
+                    className="hover:underline transition-all flex items-center gap-1 bg-transparent border-0 cursor-pointer p-0"
+                    style={styles.link}
+                    {...createHoverHandlers(colors, styles.link, styles.linkHover)}
+                    title="Check for new version"
+                  >
+                    {isChecking ? (
+                      <>
+                        <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        Checking...
+                      </>
+                    ) : (
+                      <>
+                        <span>🔔{updateAvailable && '✨'}</span>
+                        Check for Updates
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+              <p className="text-xs opacity-75">Built with ❤️ for the OpenSubtitles community</p>
             </div>
-            <p className="text-xs opacity-75">Built with ❤️ for the OpenSubtitles community</p>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Test Mode Panel - Only shows in development */}
