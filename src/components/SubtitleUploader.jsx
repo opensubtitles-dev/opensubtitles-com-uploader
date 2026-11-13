@@ -115,6 +115,7 @@ import TestModePanel from './TestModePanel.jsx';
 import UserProfile from './UserProfile.jsx';
 import UpdateNotification from './UpdateNotification.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { WEB_EMBED, requestHostLogin } from '../config/environments.js';
 
 // Lazy load the DebugPanel component
 const DebugPanel = lazy(() =>
@@ -2440,15 +2441,17 @@ function SubtitleUploaderInner() {
 
   return (
     <div className="min-h-screen bg-base-200 p-6">
-      {/* Update Notification */}
-      <UpdateNotification />
+      {/* Update Notification and API health probe: desktop only */}
+      {!WEB_EMBED && <UpdateNotification />}
 
       {/* Unified API and Ad Blocker Warning */}
-      <ApiHealthCheck
-        onApiBlocked={reason => {
-          addDebugInfo(`🚫 API blocked by ${reason}: Ad blocker or network issue detected`);
-        }}
-      />
+      {!WEB_EMBED && (
+        <ApiHealthCheck
+          onApiBlocked={reason => {
+            addDebugInfo(`🚫 API blocked by ${reason}: Ad blocker or network issue detected`);
+          }}
+        />
+      )}
 
       <div className="max-w-6xl mx-auto">
         {/* Header */}
@@ -2811,7 +2814,8 @@ function SubtitleUploaderInner() {
             </div>
             <button
               onClick={() => {
-                setShowLoginDialog(true);
+                if (WEB_EMBED) requestHostLogin();
+                else setShowLoginDialog(true);
               }}
               className="inline-flex items-center gap-3 px-8 py-4 rounded-xl transition-all transform cursor-pointer"
               style={{
@@ -2885,7 +2889,9 @@ function SubtitleUploaderInner() {
         />
 
         {/* Login Dialog for "Login to Upload" button */}
-        <LoginDialog isOpen={showLoginDialog} onClose={() => setShowLoginDialog(false)} />
+        {!WEB_EMBED && (
+          <LoginDialog isOpen={showLoginDialog} onClose={() => setShowLoginDialog(false)} />
+        )}
 
         {/* Progress Overlay */}
         <ProgressOverlay
@@ -2897,34 +2903,36 @@ function SubtitleUploaderInner() {
           startTime={processingProgress.startTime}
         />
 
-        {/* Debug Panel */}
-        <Suspense
-          fallback={
-            <div
-              className="mt-6 p-4 rounded-lg text-center"
-              style={{ backgroundColor: colors.cardBackground, color: colors.textSecondary }}
-            >
-              Loading debug panel...
-            </div>
-          }
-        >
-          <DebugPanel
-            debugMode={debugMode}
-            debugInfo={debugInfo}
-            languagesLoading={languagesLoading}
-            languagesError={languagesError}
-            movieGuesses={movieGuesses}
-            featuresByImdbId={featuresByImdbId}
-            hashCheckResults={hashCheckResults}
-            hashCheckLoading={hashCheckLoading}
-            hashCheckProcessed={hashCheckProcessed}
-            getHashCheckSummary={getHashCheckSummary}
-            toggleDebugMode={toggleDebugMode}
-            clearAllCache={clearAllCache}
-            colors={colors}
-            isDark={isDark}
-          />
-        </Suspense>
+        {/* Debug Panel: desktop only */}
+        {!WEB_EMBED && (
+          <Suspense
+            fallback={
+              <div
+                className="mt-6 p-4 rounded-lg text-center"
+                style={{ backgroundColor: colors.cardBackground, color: colors.textSecondary }}
+              >
+                Loading debug panel...
+              </div>
+            }
+          >
+            <DebugPanel
+              debugMode={debugMode}
+              debugInfo={debugInfo}
+              languagesLoading={languagesLoading}
+              languagesError={languagesError}
+              movieGuesses={movieGuesses}
+              featuresByImdbId={featuresByImdbId}
+              hashCheckResults={hashCheckResults}
+              hashCheckLoading={hashCheckLoading}
+              hashCheckProcessed={hashCheckProcessed}
+              getHashCheckSummary={getHashCheckSummary}
+              toggleDebugMode={toggleDebugMode}
+              clearAllCache={clearAllCache}
+              colors={colors}
+              isDark={isDark}
+            />
+          </Suspense>
+        )}
 
         {/* Footer */}
         <div
