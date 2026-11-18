@@ -110,7 +110,7 @@ import { ThemeProvider, useTheme } from '../contexts/ThemeContext.jsx';
 import LoginDialog from './LoginDialog.jsx';
 import { getThemeStyles, createHoverHandlers } from '../utils/themeUtils.js';
 import { APP_VERSION, isLinkRemovalEnabled } from '../utils/constants.js';
-import { propagateShowToSiblings } from '../utils/episodePropagation.js';
+import { propagateShowToSiblings, propagateMovieToSiblings } from '../utils/episodePropagation.js';
 import { SessionManager } from '../services/sessionManager.js';
 import TestModePanel from './TestModePanel.jsx';
 import UserProfile from './UserProfile.jsx';
@@ -1082,17 +1082,23 @@ function SubtitleUploaderInner() {
           })),
         ...orphanedSubtitles.map(sub => ({ path: sub.fullPath, name: sub.name })),
       ];
-      const propagated = propagateShowToSiblings({
+      // A movie picked or created by hand goes the same way to the other
+      // files with the same title and year.
+      const propagationArgs = {
         changedPath: videoPath,
         newGuess: newMovieGuess,
         files: siblings,
         movieGuesses,
-      });
+      };
+      const propagated = {
+        ...propagateShowToSiblings(propagationArgs),
+        ...propagateMovieToSiblings(propagationArgs),
+      };
       const propagatedPaths = Object.keys(propagated);
       if (propagatedPaths.length > 0) {
         propagatedPaths.forEach(path => setMovieGuess(path, propagated[path]));
         addDebugInfo(
-          `Applied ${newMovieGuess.title} to ${propagatedPaths.length} other file(s) of the same series`
+          `Applied ${newMovieGuess.title} to ${propagatedPaths.length} other file(s) with the same title`
         );
       }
 
