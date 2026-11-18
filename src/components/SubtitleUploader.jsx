@@ -409,6 +409,7 @@ function SubtitleUploaderInner() {
     clearAllState,
     fetchFeaturesByImdbId,
     setMovieGuess,
+    refineGuessWithHash,
   } = useMovieGuess(addDebugInfo, setGuessItDataForFile);
 
   const {
@@ -1708,6 +1709,12 @@ function SubtitleUploaderInner() {
 
           addDebugInfo(`Hash calculated: ${hash}`);
           updateFile(videoFile.fullPath, { movieHash: hash });
+
+          // The filename guess is already running or done; let the video
+          // hash correct it when other uploads of this exact file agree.
+          refineGuessWithHash(videoFile, hash).catch(error => {
+            addDebugInfo(`Video hash lookup failed: ${error.message}`);
+          });
 
           // Update video processing progress
           updateProgress(prev => {

@@ -5,6 +5,7 @@ import { MovieHashService } from '../services/movieHash.js';
 import { OfflineGuessItService } from '../services/offlineGuessItService.js';
 import { detectVideoFileInfo, getBestMovieDetectionName } from '../utils/fileUtils.js';
 import { retryAsync } from '../utils/retryUtils.js';
+import { hashGuessFromResult, shouldApplyHashGuess } from '../utils/hashGuess.js';
 
 /**
  * Custom hook for movie guessing and hash calculation
@@ -17,6 +18,9 @@ export const useMovieGuess = (addDebugInfo, setGuessItDataForFile) => {
   // Track which files are currently being processed to prevent duplicates
   const processingFiles = useRef(new Set());
   const failedFiles = useRef(new Set());
+  // Files identified by their video hash (see refineGuessWithHash). A
+  // filename guess that finishes later must not overwrite them.
+  const hashDecided = useRef(new Set());
 
   // Manually set a movie guess (for user selections)
   const setMovieGuess = useCallback((videoPath, movieGuess) => {
@@ -220,6 +224,7 @@ export const useMovieGuess = (addDebugInfo, setGuessItDataForFile) => {
 
         // SAFE: Update state asynchronously to avoid setState during render
         setTimeout(() => {
+          if (hashDecided.current.has(filePath)) return;
           setMovieGuesses(prev => ({
             ...prev,
             [filePath]: episodeMovieData,
@@ -248,6 +253,11 @@ export const useMovieGuess = (addDebugInfo, setGuessItDataForFile) => {
     async videoFile => {
       const filePath = videoFile.fullPath;
       const movieKey = getMovieKey(videoFile);
+
+      if (hashDecided.current.has(filePath)) {
+        addDebugInfo(`Movie already identified by video hash for ${videoFile.name}, skipping`);
+        return;
+      }
 
       // Check if already processing or failed
       if (processingFiles.current.has(filePath)) {
@@ -353,6 +363,12 @@ export const useMovieGuess = (addDebugInfo, setGuessItDataForFile) => {
         // Add subtitle detection reason if this file has one
         if (finalValidMovieGuess && videoFile.detectionReason === 'parent-directory') {
           movieGuess.reason = `Subtitle parent directory: ${videoFile.name.replace(/\.[^/.]+$/, '')}`;
+        }
+
+        // The video hash answered while the filename guess was running.
+        if (hashDecided.current.has(filePath)) {
+          addDebugInfo(`Keeping video hash match for ${videoFile.name}`);
+          return;
         }
 
         setMovieGuesses(prev => ({
@@ -498,6 +514,46 @@ export const useMovieGuess = (addDebugInfo, setGuessItDataForFile) => {
     failedFiles.current.delete(filePath);
   }, []);
 
+  // Ask /guess again once the video hash is known (see utils/hashGuess.js).
+  // Replaces the filename guess only when other uploads of this exact video
+  // agree on its feature, and never a feature the user chose.
+  const refineGuessWithHash = useCallback(
+    async (videoFile, hash) => {
+      if (!hash || hash === 'error') return;
+      const filePath = videoFile.fullPath;
+
+      let hashGuess;
+      try {
+        const result = await uploadApi.guess(videoFile.name, hash, {
+          moviebytesize: videoFile.size,
+        });
+        hashGuess = hashGuessFromResult(result);
+      } catch (error) {
+        addDebugInfo(`Video hash lookup failed for ${videoFile.name}: ${error.message}`);
+        return;
+      }
+      if (!hashGuess) {
+        addDebugInfo(`Video hash ${hash} not known yet, keeping the filename guess`);
+        return;
+      }
+
+      // Decided against the latest state, so a pick the user made meanwhile
+      // is kept.
+      setMovieGuesses(prev =>
+        shouldApplyHashGuess(prev[filePath], hashGuess) ? { ...prev, [filePath]: hashGuess } : prev
+      );
+      hashDecided.current.add(filePath);
+
+      addDebugInfo(
+        `🔗 Video hash match: ${hashGuess.formatted_title || hashGuess.title} (kept unless chosen by hand)`
+      );
+      if (hashGuess.imdbid) {
+        setTimeout(() => fetchFeaturesByImdbId(hashGuess.imdbid), 0);
+      }
+    },
+    [addDebugInfo, fetchFeaturesByImdbId]
+  );
+
   // Clear all state (for fresh file drops)
   const clearAllState = useCallback(() => {
     setMovieGuesses({});
@@ -505,6 +561,7 @@ export const useMovieGuess = (addDebugInfo, setGuessItDataForFile) => {
     setFeaturesLoading({});
     processingFiles.current.clear();
     failedFiles.current.clear();
+    hashDecided.current.clear();
   }, []);
 
   // Get processing status
@@ -532,5 +589,6 @@ export const useMovieGuess = (addDebugInfo, setGuessItDataForFile) => {
     clearAllState,
     getProcessingStatus,
     setMovieGuess, // New function for manual movie setting
+    refineGuessWithHash,
   };
 };

@@ -98,6 +98,23 @@ describe('uploadApi.guess', () => {
     assert.equal(client.calls[0].body.moviehash, 'abc123def456');
   });
 
+  test('sends moviebytesize with a moviehash only', async () => {
+    const client = makeFakeClient(async () => ({ best_guess: BEST, candidates: [] }));
+    const api = createUploadApi({ client });
+    await api.guess('Matrix.mkv', 'abc123def456', { moviebytesize: 734003200 });
+    await api.guess('Matrix.mkv', null, { moviebytesize: 734003200 });
+    assert.equal(client.calls[0].body.moviebytesize, 734003200);
+    assert.equal('moviebytesize' in client.calls[1].body, false);
+  });
+
+  test('returns the source the server decided by', async () => {
+    const client = makeFakeClient(async () => ({ best_guess: BEST, source: 'moviehash' }));
+    const api = createUploadApi({ client });
+    assert.equal((await api.guess('m.mkv', 'abc')).source, 'moviehash');
+    const old = createUploadApi({ client: makeFakeClient(async () => ({ best_guess: BEST })) });
+    assert.equal((await old.guess('m.mkv')).source, null);
+  });
+
   test('omits moviehash when null/undefined', async () => {
     const client = makeFakeClient(async () => ({ best_guess: BEST, candidates: [] }));
     const api = createUploadApi({ client });
