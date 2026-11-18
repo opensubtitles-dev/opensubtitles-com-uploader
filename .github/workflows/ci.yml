@@ -57,7 +57,9 @@ jobs:
         run: npm ci
 
       - name: Build Tauri app (Linux)
-        run: npm run tauri:build
+        # A check build, not a release: skip the signed updater artifacts,
+        # whose private key only the release workflow (build-desktop-apps.yml) has.
+        run: npm run tauri:build -- --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
       - name: Check build artifacts
         run: |
