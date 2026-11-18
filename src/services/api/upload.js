@@ -90,16 +90,21 @@ export function createUploadApi({ client = defaultClient } = {}) {
      *
      * @param {string} filename
      * @param {string|null} [moviehash]   optional 16-hex moviehash
-     * @param {{ signal?: AbortSignal, anonymous?: boolean }} [opts]
+     * @param {{ signal?: AbortSignal, anonymous?: boolean, moviebytesize?: number }} [opts]
      * @returns {Promise<{
      *   best_guess: object|null,
      *   candidates: object[],
+     *   source: 'moviehash'|'title'|null,
      *   raw: object
      * }>}
      */
     async guess(filename, moviehash = null, opts = {}) {
       const body = { filename: String(filename ?? '') };
       if (moviehash) body.moviehash = String(moviehash);
+      // The server leaves out hash links recorded for a different file size.
+      if (moviehash && Number(opts.moviebytesize) > 0) {
+        body.moviebytesize = Number(opts.moviebytesize);
+      }
 
       const response = await client.post('/subtitles/upload/guess', body, {
         signal: opts.signal,
@@ -112,7 +117,10 @@ export function createUploadApi({ client = defaultClient } = {}) {
         ? response.candidates.map(c => normalizeGuessResult(c)).filter(Boolean)
         : [];
 
-      return { best_guess: best, candidates, raw: response };
+      // "moviehash": a video hash other uploads agree on decided the answer.
+      const source = response?.source ?? null;
+
+      return { best_guess: best, candidates, source, raw: response };
     },
 
     /**
