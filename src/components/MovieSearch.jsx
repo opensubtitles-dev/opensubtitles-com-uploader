@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useMovieSearch } from '../hooks/useMovieSearch.js';
 import { StubFeatureDialog } from './StubFeatureDialog.jsx';
+import { isNewImdbRow } from '../utils/imdbLookup.js';
 
 export const MovieSearch = ({
   isOpen,
@@ -29,6 +30,8 @@ export const MovieSearch = ({
 
   const movieRequiresConfirmation = movie => {
     if ((movie?.kind || '').toLowerCase() === 'tvshow') return true;
+    // An IMDb title we do not have yet opens the create dialog.
+    if (isNewImdbRow(movie)) return true;
     const envelope = movie?._resolveEnvelope;
     return Boolean(envelope?.found && !(envelope.exists_in_db && envelope.feature_id));
   };
@@ -160,6 +163,7 @@ export const MovieSearch = ({
                   <div className="text-xs" style={{ color: themeColors.textMuted }}>
                     {movie.kind && `${movie.kind} • `}
                     IMDb: {movie.id || movie.imdbid || 'N/A'}
+                    {isNewImdbRow(movie) && ' • from IMDb, not on OpenSubtitles yet'}
                   </div>
                 </div>
               </div>
