@@ -1,6 +1,7 @@
 import React from 'react';
 import { featuresApi } from '../services/api/features.js';
 import { uploadApi } from '../services/api/upload.js';
+import { isNewImdbRow, mergeSearchResults } from '../utils/imdbLookup.js';
 
 /**
  * Shared movie search hook for both MatchedPairs and OrphanedSubtitles
@@ -149,11 +150,23 @@ export const useMovieSearch = onMovieChange => {
             }
           }
         } else {
-          // Text path — unchanged.
-          const { data } = await featuresApi.searchByQuery(query, {
-            signal: controller.signal,
-          });
-          setMovieSearchResults(data);
+          // Text path — our own titles (/features) and IMDb's list (the
+          // lookup) at once; ours first, then IMDb rows we do not list. Either
+          // may fail alone: the other's rows still show.
+          const [local, imdb] = await Promise.allSettled([
+            featuresApi.searchByQuery(query, { signal: controller.signal }),
+            uploadApi.lookupTitles(query, { signal: controller.signal }),
+          ]);
+          if (controller.signal.aborted) return;
+          if (local.status === 'rejected' && local.reason?.name !== 'AbortError') {
+            console.error('Movie search error:', local.reason);
+          }
+          setMovieSearchResults(
+            mergeSearchResults(
+              local.status === 'fulfilled' ? local.value.data : [],
+              imdb.status === 'fulfilled' ? imdb.value : []
+            )
+          );
         }
       } catch (error) {
         if (error?.name !== 'AbortError') {
@@ -239,6 +252,25 @@ export const useMovieSearch = onMovieChange => {
         setMovieUpdateLoading(prev => ({ ...prev, [itemPath]: false }));
       }
     };
+
+    // A movie from the IMDb title lookup that we do not have yet: resolve
+    // its id first, exactly as if it had been pasted, so the confirm/create
+    // dialog below runs (or, if someone added it meanwhile, the existing
+    // feature is used).
+    if (!isGuessShape && isNewImdbRow(movie) && (movie.kind || '').toLowerCase() !== 'tvshow') {
+      setMovieUpdateLoading(prev => ({ ...prev, [itemPath]: true }));
+      let envelope = null;
+      try {
+        envelope = await uploadApi.resolveFromId({ imdbId: movie.id });
+      } catch (err) {
+        console.error('Failed to resolve IMDb lookup row:', err);
+      } finally {
+        setMovieUpdateLoading(prev => ({ ...prev, [itemPath]: false }));
+      }
+      const resolved = envelopeToSearchRow(envelope);
+      if (!resolved) return;
+      movie = resolved;
+    }
 
     // Tvshow → ALWAYS open the episode picker. Never let a bare show
     // imdb_id propagate as the final upload target.

@@ -474,3 +474,81 @@ describe('uploadApi.resolveFromId', () => {
 // emits and consumes REST shape directly; see
 // docs/plans/10-orchestration-rewrite.md for the full sequence.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// lookupTitles
+// ---------------------------------------------------------------------------
+
+describe('uploadApi.lookupTitles', () => {
+  const makeGetClient = handler => {
+    const calls = [];
+    return {
+      calls,
+      async get(path, opts) {
+        calls.push({ path, opts });
+        return handler(path, opts);
+      },
+    };
+  };
+
+  test('GETs the lookup with q and maps rows to search rows', async () => {
+    const client = makeGetClient(() => ({
+      data: [
+        {
+          imdb_id: 'tt0068646',
+          title: 'The Godfather',
+          original_title: null,
+          year: 1972,
+          type: 'movie',
+          votes: 2181568,
+          feature_id: null,
+        },
+        {
+          imdb_id: 'tt8080122',
+          title: 'Godfather of Harlem',
+          year: 2019,
+          type: 'tvshow',
+          votes: 27553,
+          feature_id: 77,
+        },
+      ],
+    }));
+    const rows = await createUploadApi({ client }).lookupTitles('  godfather ');
+
+    assert.equal(client.calls[0].path, '/subtitles/upload/features/lookup');
+    assert.deepEqual(client.calls[0].opts.query, { q: 'godfather' });
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0].id, 'tt0068646');
+    assert.equal(rows[0].imdb_id, 68646);
+    assert.equal(rows[0].source, 'imdb');
+    assert.equal(rows[0].feature_id, null);
+    assert.equal(rows[1].kind, 'tvshow');
+    assert.equal(rows[1].feature_id, 77);
+  });
+
+  test('does not call the server for a query under 2 or over 100 characters', async () => {
+    const client = makeGetClient(() => ({ data: [] }));
+    const api = createUploadApi({ client });
+    assert.deepEqual(await api.lookupTitles(' g '), []);
+    assert.deepEqual(await api.lookupTitles('x'.repeat(101)), []);
+    assert.equal(client.calls.length, 0);
+  });
+
+  test('gives [] when the server refuses (503 dataset not built), rethrows aborts', async () => {
+    const unavailable = makeGetClient(() => {
+      const err = new Error('IMDb title search is not available right now');
+      err.code = 'lookup_unavailable';
+      throw err;
+    });
+    assert.deepEqual(await createUploadApi({ client: unavailable }).lookupTitles('godfather'), []);
+
+    const aborted = makeGetClient(() => {
+      const err = new Error('aborted');
+      err.name = 'AbortError';
+      throw err;
+    });
+    await assert.rejects(createUploadApi({ client: aborted }).lookupTitles('godfather'), {
+      name: 'AbortError',
+    });
+  });
+});

@@ -12,6 +12,7 @@
  */
 
 import { restClient as defaultClient } from './restClient.js';
+import { imdbLookupRowToSearchRow } from '../../utils/imdbLookup.js';
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -221,6 +222,37 @@ export function createUploadApi({ client = defaultClient } = {}) {
       }
       if (source) body.source = source;
       return client.post('/subtitles/upload/features/stub', body, { signal: opts.signal });
+    },
+
+    /**
+     * GET /subtitles/upload/features/lookup?q= — search IMDb's movies and
+     * series by title (the server's copy of IMDb's daily dumps). Rows come
+     * back in the search-row shape, with `source: 'imdb'` and `feature_id`
+     * set when the title is already on OpenSubtitles.
+     *
+     * Never throws for a server answer: a 422 (query too short or long) or a
+     * 503 (dataset not built on that server yet) gives []. Aborts rethrow.
+     *
+     * @param {string} query
+     * @param {{ signal?: AbortSignal }} [opts]
+     * @returns {Promise<object[]>}
+     */
+    async lookupTitles(query, opts = {}) {
+      const q = String(query ?? '').trim();
+      if (q.length < 2 || q.length > 100) return [];
+      try {
+        const response = await client.get('/subtitles/upload/features/lookup', {
+          query: { q },
+          signal: opts.signal,
+          authenticated: 'auto',
+        });
+        const rows = Array.isArray(response?.data) ? response.data : [];
+        return rows.map(imdbLookupRowToSearchRow).filter(Boolean);
+      } catch (err) {
+        if (err?.name === 'AbortError') throw err;
+        console.warn('IMDb title lookup unavailable:', err?.code || err?.message || err);
+        return [];
+      }
     },
 
     /**
